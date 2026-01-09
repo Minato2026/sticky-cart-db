@@ -1,0 +1,28 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "5a2e451bcc74511f8be6157b743711f1"
+name = "Sticky Add to Cart"
+application_url = "https://minato-app-server.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-01"
+
+[webhooks.privacy_compliance]
+customer_data_request_url = "https://minato-app-server.com/webhooks"
+customer_redact_url = "https://minato-app-server.com/webhooks"
+shop_redact_url = "https://minato-app-server.com/webhooks"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = ""
+
+[auth]
+redirect_urls = [
+  "https://minato-app-server.com/auth/callback",
+  "https://minato-app-server.com/auth/shopify/callback",
+  "https://minato-app-server.com/api/auth/callback"
+]
