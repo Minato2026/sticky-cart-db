@@ -24,6 +24,8 @@
     "extensions/*"
   ],
   "devDependencies": {
+    "@shopify/app": "^3.50.0",
+    "@shopify/cli": "^3.50.0",
     "@prisma/client": "^5.22.0",
     "prisma": "^5.22.0"
   }
