@@ -272,7 +272,53 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// ================= MANDATORY WEBHOOKS =================
+// ================= GENERIC WEBHOOK HANDLER =================
+
+/**
+ * Generic webhook handler for all topics
+ * Routes based on X-Shopify-Topic header
+ * This matches the shopify.app.toml configuration
+ */
+app.post('/api/webhooks', verifyWebhookHmac, (req, res) => {
+  const topic = req.get('X-Shopify-Topic');
+  const { shop_domain, customer } = req.body;
+
+  console.log(`[WEBHOOK] Received: ${topic} from ${shop_domain}`);
+
+  switch (topic) {
+    case 'app/uninstalled':
+      console.log(`[WEBHOOK] App uninstalled from ${shop_domain}`);
+      // Optional: Clean up database records for this shop
+      // await deleteShopData(shop_domain);
+      break;
+
+    case 'customers/data_request':
+      console.log(`[GDPR] Customer data request for ${customer?.email || 'unknown'} from ${shop_domain}`);
+      // For extension-only apps with no customer data storage:
+      // Simply acknowledge the request
+      // If you store customer data, you must return it here
+      break;
+
+    case 'customers/redact':
+      console.log(`[GDPR] Customer redact request for ${customer?.email || 'unknown'} from ${shop_domain}`);
+      // Optional: Delete customer data from database
+      // await deleteCustomerData(customer.id);
+      break;
+
+    case 'shop/redact':
+      console.log(`[GDPR] Shop redact request for ${shop_domain}`);
+      // Optional: Delete all shop data from database
+      // await deleteShopData(shop_domain);
+      break;
+
+    default:
+      console.log(`[WEBHOOK] Unknown topic: ${topic}`);
+  }
+
+  res.status(200).send('OK');
+});
+
+// ================= MANDATORY WEBHOOKS (Legacy specific endpoints) =================
 
 /**
  * App Uninstalled Webhook
