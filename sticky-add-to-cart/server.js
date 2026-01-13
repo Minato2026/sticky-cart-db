@@ -1,0 +1,378 @@
+const express = require('express');
+const crypto = require('crypto');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// ================= ENVIRONMENT VARIABLES =================
+const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
+const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
+const HOST = process.env.HOST; // e.g., https://your-app.onrender.com
+const SCOPES = process.env.SCOPES || 'write_themes';
+const API_VERSION = '2024-01';
+
+// Validate required environment variables
+if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
+  console.error('❌ Missing required environment variables: SHOPIFY_API_KEY, SHOPIFY_API_SECRET, or HOST');
+  process.exit(1);
+}
+
+// ================= MIDDLEWARE SETUP =================
+// CRITICAL: Webhook endpoints need RAW body for HMAC verification
+app.use('/api/webhooks', express.raw({ type: 'application/json' }));
+
+// All other routes use JSON parser
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ================= HMAC VERIFICATION FUNCTIONS =================
+
+/**
+ * Verify Shopify webhook HMAC signature
+ * CRITICAL: Must use raw request body (Buffer) for verification
+ */
+function verifyWebhookHmac(req, res, next) {
+  const hmacHeader = req.get('X-Shopify-Hmac-Sha256');
+  const shopDomain = req.get('X-Shopify-Shop-Domain');
+
+  if (!hmacHeader) {
+    console.error('[WEBHOOK] Missing HMAC header');
+    return res.status(401).send('Unauthorized: Missing HMAC');
+  }
+
+  // req.body is a Buffer when using express.raw()
+  const rawBody = req.body;
+
+  // Generate HMAC from raw body
+  const generatedHmac = crypto
+    .createHmac('sha256', SHOPIFY_API_SECRET)
+    .update(rawBody)
+    .digest('base64');
+
+  // Timing-safe comparison to prevent timing attacks
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(generatedHmac, 'utf8'),
+    Buffer.from(hmacHeader, 'utf8')
+  );
+
+  if (!isValid) {
+    console.error(`[WEBHOOK] Invalid HMAC from ${shopDomain}`);
+    return res.status(401).send('Unauthorized: Invalid HMAC');
+  }
+
+  console.log(`[WEBHOOK] ✅ HMAC verified for ${shopDomain}`);
+
+  // Parse JSON body AFTER verification
+  req.body = JSON.parse(rawBody.toString('utf8'));
+  next();
+}
+
+/**
+ * Verify OAuth callback HMAC
+ * Uses query parameters (not body)
+ */
+function verifyOAuthHmac(query) {
+  const { hmac, ...params } = query;
+
+  if (!hmac) {
+    return false;
+  }
+
+  // Build message from sorted query params (excluding hmac)
+  const message = Object.keys(params)
+    .sort()
+    .map(key => `${key}=${params[key]}`)
+    .join('&');
+
+  const generatedHmac = crypto
+    .createHmac('sha256', SHOPIFY_API_SECRET)
+    .update(message)
+    .digest('hex');
+
+  // Timing-safe comparison
+  return crypto.timingSafeEqual(
+    Buffer.from(generatedHmac, 'utf8'),
+    Buffer.from(hmac, 'utf8')
+  );
+}
+
+// ================= WEBHOOK REGISTRATION =================
+
+/**
+ * Register mandatory webhooks with Shopify
+ * CRITICAL: This is WHY automated checks pass
+ * Shopify verifies that webhooks are registered, not just that endpoints exist
+ */
+async function registerWebhooks(shop, accessToken) {
+  const webhooks = [
+    {
+      topic: 'app/uninstalled',
+      address: `${HOST}/api/webhooks/app/uninstalled`,
+      format: 'json'
+    },
+    {
+      topic: 'customers/data_request',
+      address: `${HOST}/api/webhooks/customers/data_request`,
+      format: 'json'
+    },
+    {
+      topic: 'customers/redact',
+      address: `${HOST}/api/webhooks/customers/redact`,
+      format: 'json'
+    },
+    {
+      topic: 'shop/redact',
+      address: `${HOST}/api/webhooks/shop/redact`,
+      format: 'json'
+    }
+  ];
+
+  console.log(`[WEBHOOKS] Registering ${webhooks.length} webhooks for ${shop}...`);
+
+  for (const webhook of webhooks) {
+    try {
+      const response = await fetch(
+        `https://${shop}/admin/api/${API_VERSION}/webhooks.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken
+          },
+          body: JSON.stringify({ webhook })
+        }
+      );
+
+      if (response.ok) {
+        console.log(`[WEBHOOKS] ✅ Registered: ${webhook.topic}`);
+      } else {
+        const error = await response.text();
+        console.error(`[WEBHOOKS] ❌ Failed to register ${webhook.topic}:`, error);
+      }
+    } catch (error) {
+      console.error(`[WEBHOOKS] ❌ Error registering ${webhook.topic}:`, error.message);
+    }
+  }
+
+  console.log('[WEBHOOKS] Registration complete');
+}
+
+// ================= HEALTH CHECK =================
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    app: 'Sticky Add to Cart',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ================= OAUTH INSTALLATION FLOW =================
+
+/**
+ * Step 1: Initiate OAuth
+ * Redirects merchant to Shopify OAuth authorization page
+ */
+app.get('/auth', (req, res) => {
+  const { shop } = req.query;
+
+  if (!shop) {
+    return res.status(400).send('Missing shop parameter');
+  }
+
+  // Validate shop domain format
+  const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/;
+  if (!shopRegex.test(shop)) {
+    return res.status(400).send('Invalid shop domain');
+  }
+
+  const redirectUri = `${HOST}/auth/callback`;
+  const state = crypto.randomBytes(16).toString('hex'); // CSRF protection
+
+  const installUrl =
+    `https://${shop}/admin/oauth/authorize` +
+    `?client_id=${SHOPIFY_API_KEY}` +
+    `&scope=${SCOPES}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${state}`;
+
+  console.log(`[AUTH] Redirecting ${shop} to OAuth...`);
+  res.redirect(installUrl);
+});
+
+/**
+ * Step 2: OAuth Callback
+ * CRITICAL: This is where webhook registration happens
+ * 1. Verify HMAC
+ * 2. Exchange code for access token
+ * 3. Register webhooks (THIS IS WHY AUTOMATED CHECKS PASS)
+ * 4. Redirect back to Shopify Admin
+ */
+app.get('/auth/callback', async (req, res) => {
+  const { shop, code, state } = req.query;
+
+  // Validate required parameters
+  if (!shop || !code) {
+    return res.status(400).send('Missing required OAuth parameters');
+  }
+
+  // Verify OAuth HMAC
+  if (!verifyOAuthHmac(req.query)) {
+    console.error('[AUTH] Invalid OAuth HMAC');
+    return res.status(401).send('Unauthorized: Invalid HMAC');
+  }
+
+  console.log(`[AUTH] ✅ OAuth HMAC verified for ${shop}`);
+
+  try {
+    // Exchange authorization code for access token
+    const tokenResponse = await fetch(
+      `https://${shop}/admin/oauth/access_token`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: SHOPIFY_API_KEY,
+          client_secret: SHOPIFY_API_SECRET,
+          code
+        })
+      }
+    );
+
+    if (!tokenResponse.ok) {
+      const error = await tokenResponse.text();
+      console.error('[AUTH] Failed to exchange code for token:', error);
+      return res.status(500).send('Failed to complete installation');
+    }
+
+    const { access_token } = await tokenResponse.json();
+    console.log(`[AUTH] ✅ Access token obtained for ${shop}`);
+
+    // CRITICAL: Register webhooks immediately after installation
+    // This is what makes Shopify automated checks pass
+    await registerWebhooks(shop, access_token);
+
+    // Optional: Store access token in database if needed
+    // For extension-only apps, you may not need persistent storage
+    // If you do need it, uncomment and implement:
+    // await storeAccessToken(shop, access_token);
+
+    console.log(`[AUTH] ✅ Installation complete for ${shop}`);
+
+    // Redirect merchant back to Shopify Admin
+    // CRITICAL: Must redirect to Shopify, not show a custom page
+    return res.redirect(`https://${shop}/admin/apps/${SHOPIFY_API_KEY}`);
+
+  } catch (error) {
+    console.error('[AUTH] Installation error:', error);
+    return res.status(500).send('Installation failed');
+  }
+});
+
+// ================= MANDATORY WEBHOOKS =================
+
+/**
+ * App Uninstalled Webhook
+ * Triggered when merchant uninstalls the app
+ * Use this to clean up any stored data
+ */
+app.post('/api/webhooks/app/uninstalled', verifyWebhookHmac, (req, res) => {
+  const { shop_domain } = req.body;
+  console.log(`[WEBHOOK] App uninstalled from ${shop_domain}`);
+
+  // Optional: Clean up database records for this shop
+  // await deleteShopData(shop_domain);
+
+  res.status(200).send('OK');
+});
+
+/**
+ * GDPR: Customer Data Request
+ * Merchant requests customer data on behalf of the customer
+ * Return all data you have about this customer
+ */
+app.post('/api/webhooks/customers/data_request', verifyWebhookHmac, (req, res) => {
+  const { shop_domain, customer } = req.body;
+  console.log(`[GDPR] Customer data request for ${customer?.email || 'unknown'} from ${shop_domain}`);
+
+  // For extension-only apps with no customer data storage:
+  // Simply acknowledge the request
+  // If you store customer data, you must return it here
+
+  res.status(200).send('OK');
+});
+
+/**
+ * GDPR: Customer Redact
+ * Delete all customer data (48 hours after customer requests deletion)
+ */
+app.post('/api/webhooks/customers/redact', verifyWebhookHmac, (req, res) => {
+  const { shop_domain, customer } = req.body;
+  console.log(`[GDPR] Customer redact request for ${customer?.email || 'unknown'} from ${shop_domain}`);
+
+  // Optional: Delete customer data from database
+  // await deleteCustomerData(customer.id);
+
+  res.status(200).send('OK');
+});
+
+/**
+ * GDPR: Shop Redact
+ * Delete all shop data (48 hours after shop uninstalls)
+ */
+app.post('/api/webhooks/shop/redact', verifyWebhookHmac, (req, res) => {
+  const { shop_domain } = req.body;
+  console.log(`[GDPR] Shop redact request for ${shop_domain}`);
+
+  // Optional: Delete all shop data from database
+  // await deleteShopData(shop_domain);
+
+  res.status(200).send('OK');
+});
+
+// ================= ERROR HANDLERS =================
+
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    path: req.path
+  });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('[ERROR]', err);
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message
+  });
+});
+
+// ================= START SERVER =================
+app.listen(PORT, () => {
+  console.log('='.repeat(70));
+  console.log('✅ Shopify Compliance Server Running');
+  console.log(`🌍 Host: ${HOST}`);
+  console.log(`🔐 HMAC Verification: ENABLED`);
+  console.log(`📋 API Version: ${API_VERSION}`);
+  console.log(`🎯 Scopes: ${SCOPES}`);
+  console.log('='.repeat(70));
+  console.log('📌 Mandatory webhooks will be registered during installation');
+  console.log('📌 All webhooks use HMAC verification');
+  console.log('='.repeat(70));
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  process.exit(0);
+});

@@ -1,0 +1,28 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "5a2e451bcc74511f8be6157b743711f1"
+name = "Sticky Add to Cart"
+application_url = "https://sticky-cart-db.onrender.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-01"
+
+[webhooks.privacy_compliance]
+customer_data_request_url = "https://sticky-cart-db.onrender.com/api/webhooks/customers/data_request"
+customer_redact_url = "https://sticky-cart-db.onrender.com/api/webhooks/customers/redact"
+shop_redact_url = "https://sticky-cart-db.onrender.com/api/webhooks/shop/redact"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = ""
+
+[auth]
+redirect_urls = [
+  "https://sticky-cart-db.onrender.com/auth/callback",
+  "https://sticky-cart-db.onrender.com/auth/shopify/callback",
+  "https://sticky-cart-db.onrender.com/api/auth/callback"
+]

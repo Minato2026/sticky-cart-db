@@ -1,0 +1,451 @@
+{% comment %}
+  Sticky Add to Cart Bar - Production Ready
+  Shopify Theme App Extension (App Embed Block)
+  Uses Proxy Click Method for Maximum Compatibility
+{% endcomment %}
+
+{% if product and product.available %}
+  <div 
+    class="stky-atc" 
+    data-sticky-atc
+    data-position="{{ block.settings.position }}"
+    data-bg-color="{{ block.settings.bg_color }}"
+    data-text-color="{{ block.settings.text_color }}"
+    data-btn-bg="{{ block.settings.btn_bg_color }}"
+    data-btn-text="{{ block.settings.btn_text_color }}"
+    data-show-desktop="{{ block.settings.show_desktop }}"
+    data-show-mobile="{{ block.settings.show_mobile }}"
+  >
+    <div class="stky-atc__wrapper">
+      <div class="stky-atc__content">
+        {% if product.featured_image %}
+          <img 
+            src="{{ product.featured_image | image_url: width: 100 }}" 
+            alt="{{ product.title | escape }}"
+            class="stky-atc__img"
+            loading="lazy"
+            width="60"
+            height="60"
+          >
+        {% endif %}
+        
+        <div class="stky-atc__info">
+          <h3 class="stky-atc__title">{{ product.title }}</h3>
+          <p class="stky-atc__price">
+            {{ product.selected_or_first_available_variant.price | money }}
+          </p>
+        </div>
+      </div>
+
+      <button 
+        type="button"
+        class="stky-atc__btn"
+        data-sticky-btn
+        aria-label="Add {{ product.title }} to cart"
+      >
+        <span class="stky-atc__btn-text">Add to Cart</span>
+      </button>
+    </div>
+  </div>
+
+  <style>
+    /* ===== Sticky Add to Cart Styles ===== */
+    .stky-atc {
+      position: fixed;
+      left: 0;
+      right: 0;
+      width: 100%;
+      background-color: var(--stky-bg, #ffffff);
+      color: var(--stky-text, #000000);
+      box-shadow: 0 -3px 16px rgba(0, 0, 0, 0.12);
+      transform: translateY(100%);
+      opacity: 0;
+      visibility: hidden;
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                  opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                  visibility 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 999999;
+      padding: 16px 20px;
+    }
+
+    /* Position Variants */
+    .stky-atc[data-position="bottom"] {
+      bottom: 0;
+      top: auto;
+      transform: translateY(100%);
+    }
+
+    .stky-atc[data-position="top"] {
+      top: 0;
+      bottom: auto;
+      transform: translateY(-100%);
+      box-shadow: 0 3px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Visible State */
+    .stky-atc.is-visible {
+      transform: translateY(0);
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Reduced Motion Support */
+    @media (prefers-reduced-motion: reduce) {
+      .stky-atc {
+        transform: none;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+      }
+
+      .stky-atc:not(.is-visible) {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .stky-atc.is-visible {
+        opacity: 1;
+        visibility: visible;
+      }
+    }
+
+    /* Container */
+    .stky-atc__wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .stky-atc__content {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Product Image */
+    .stky-atc__img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    /* Product Info */
+    .stky-atc__info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .stky-atc__title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.3;
+      color: inherit;
+      /* CSS-only truncation */
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stky-atc__price {
+      margin: 6px 0 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: inherit;
+    }
+
+    /* Add to Cart Button */
+    .stky-atc__btn {
+      background-color: var(--stky-btn-bg, #000000);
+      color: var(--stky-btn-text, #ffffff);
+      border: none;
+      padding: 16px 40px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+      white-space: nowrap;
+      min-width: 160px;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .stky-atc__btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      opacity: 0.9;
+    }
+
+    .stky-atc__btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .stky-atc__btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .stky-atc__btn:focus-visible {
+      outline: 3px solid var(--stky-btn-bg, #000000);
+      outline-offset: 4px;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .stky-atc {
+        padding: 12px 16px;
+      }
+
+      .stky-atc__wrapper {
+        gap: 14px;
+      }
+
+      .stky-atc__content {
+        gap: 12px;
+      }
+
+      .stky-atc__img {
+        width: 50px;
+        height: 50px;
+      }
+
+      .stky-atc__title {
+        font-size: 14px;
+      }
+
+      .stky-atc__price {
+        font-size: 16px;
+        margin-top: 4px;
+      }
+
+      .stky-atc__btn {
+        padding: 13px 28px;
+        font-size: 14px;
+        min-width: 140px;
+      }
+    }
+
+    /* Device Visibility Controls */
+    @media (min-width: 769px) {
+      .stky-atc[data-show-desktop="false"] {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .stky-atc[data-show-mobile="false"] {
+        display: none !important;
+      }
+    }
+  </style>
+
+  <script>
+    (function() {
+      'use strict';
+
+      // Prevent multiple initializations
+      if (window.stickyATCInitialized) return;
+      window.stickyATCInitialized = true;
+
+      const stickyBar = document.querySelector('[data-sticky-atc]');
+      if (!stickyBar) return;
+
+      // Apply CSS variables from settings
+      stickyBar.style.setProperty('--stky-bg', stickyBar.dataset.bgColor);
+      stickyBar.style.setProperty('--stky-text', stickyBar.dataset.textColor);
+      stickyBar.style.setProperty('--stky-btn-bg', stickyBar.dataset.btnBg);
+      stickyBar.style.setProperty('--stky-btn-text', stickyBar.dataset.btnText);
+
+      const stickyBtn = stickyBar.querySelector('[data-sticky-btn]');
+      const btnText = stickyBtn.querySelector('.stky-atc__btn-text');
+
+      // ===== SMART BUTTON DETECTION =====
+      function findMainButton() {
+        const selectors = [
+          'form[action*="/cart/add"] button[type="submit"]',
+          '.product-form__submit',
+          '[name="add"]',
+          'button[class*="add-to-cart"]'
+        ];
+
+        for (const selector of selectors) {
+          const button = document.querySelector(selector);
+          if (button && button.offsetParent !== null) {
+            return button;
+          }
+        }
+        return null;
+      }
+
+      const mainButton = findMainButton();
+
+      // ===== FAIL-SAFE: Hide if no valid button found =====
+      if (!mainButton) {
+        console.warn('Sticky ATC: Main Add to Cart button not found. Sticky bar will remain hidden.');
+        stickyBar.style.display = 'none';
+        return;
+      }
+
+      // ===== VISIBILITY LOGIC =====
+      const productForm = document.querySelector('form[action*="/cart/add"]') ||
+                         document.querySelector('.product-form') ||
+                         document.querySelector('[data-product-form]');
+
+      if (productForm && 'IntersectionObserver' in window) {
+        // Primary: Use IntersectionObserver
+        const observer = new IntersectionObserver(
+          function(entries) {
+            entries.forEach(function(entry) {
+              if (entry.isIntersecting) {
+                stickyBar.classList.remove('is-visible');
+              } else {
+                stickyBar.classList.add('is-visible');
+              }
+            });
+          },
+          {
+            threshold: 0,
+            rootMargin: '0px'
+          }
+        );
+
+        observer.observe(productForm);
+
+        // Cleanup
+        window.addEventListener('beforeunload', function() {
+          observer.disconnect();
+        });
+
+      } else {
+        // Fallback: Scroll-based visibility
+        let scrollTimeout;
+        window.addEventListener('scroll', function() {
+          clearTimeout(scrollTimeout);
+          
+          scrollTimeout = setTimeout(function() {
+            if (window.scrollY > 400) {
+              stickyBar.classList.add('is-visible');
+            } else {
+              stickyBar.classList.remove('is-visible');
+            }
+          }, 15);
+        });
+      }
+
+      // ===== PROXY CLICK METHOD =====
+      stickyBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+
+        if (stickyBtn.disabled) return;
+
+        // Re-check button availability (in case of dynamic changes)
+        const currentMainButton = findMainButton();
+
+        if (!currentMainButton) {
+          console.error('Sticky ATC: Main button no longer available.');
+          return;
+        }
+
+        // Visual feedback
+        const originalText = btnText.textContent;
+        btnText.textContent = 'Adding...';
+        stickyBtn.disabled = true;
+
+        // Trigger the main button click
+        currentMainButton.click();
+
+        // Reset after delay
+        setTimeout(function() {
+          btnText.textContent = 'Added!';
+          
+          setTimeout(function() {
+            btnText.textContent = originalText;
+            stickyBtn.disabled = false;
+          }, 1500);
+        }, 400);
+      });
+
+    })();
+  </script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Sticky Add to Cart",
+  "target": "body",
+  "templates": ["product"],
+  "settings": [
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "btn_bg_color",
+      "label": "Button Background",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "btn_text_color",
+      "label": "Button Text Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "header",
+      "content": "Layout"
+    },
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Position",
+      "options": [
+        {
+          "value": "bottom",
+          "label": "Bottom"
+        },
+        {
+          "value": "top",
+          "label": "Top"
+        }
+      ],
+      "default": "bottom"
+    },
+    {
+      "type": "header",
+      "content": "Device Visibility"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_desktop",
+      "label": "Show on Desktop",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_mobile",
+      "label": "Show on Mobile",
+      "default": true
+    }
+  ]
+}
+{% endschema %}

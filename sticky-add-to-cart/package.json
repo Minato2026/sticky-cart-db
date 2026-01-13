@@ -1,0 +1,32 @@
+{
+  "name": "sticky-add-to-cart",
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "scripts": {
+    "shopify": "shopify",
+    "build": "shopify app build",
+    "dev": "shopify app dev",
+    "info": "shopify app info",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.16.3"
+  },
+  "trustedDependencies": [
+    "@shopify/plugin-cloudflare"
+  ],
+  "author": "YAMATOoO",
+  "private": true,
+  "workspaces": [
+    "extensions/*"
+  ],
+  "devDependencies": {
+    "@shopify/app": "^3.50.0",
+    "@shopify/cli": "^3.50.0",
+    "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0"
+  }
+}
