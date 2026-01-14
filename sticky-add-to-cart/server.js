@@ -1,3 +1,6 @@
+// CRITICAL: Import Node.js adapter first to prevent runtime errors
+require('@shopify/shopify-api/adapters/node');
+
 const express = require('express');
 const crypto = require('crypto');
 const { shopifyApi, ApiVersion, DeliveryMethod } = require('@shopify/shopify-api');
