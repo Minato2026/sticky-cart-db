@@ -89,8 +89,9 @@ console.log('[SHOPIFY API] ✅ Initialized with GDPR webhook handlers');
 
 
 // ================= MIDDLEWARE SETUP =================
-// CRITICAL: Webhook endpoints need RAW body for HMAC verification
-app.use('/api/webhooks', express.raw({ type: 'application/json' }));
+// CRITICAL: Webhook endpoints need RAW STRING body for HMAC verification
+// Use express.text() to preserve the raw body as a string (not Buffer)
+app.use('/api/webhooks', express.text({ type: 'application/json' }));
 
 // All other routes use JSON parser
 app.use(express.json());
@@ -360,8 +361,9 @@ app.post('/api/webhooks', async (req, res) => {
 
     // Process webhook using Shopify API
     // This automatically validates HMAC and routes to the correct handler
+    // CRITICAL: Pass raw string body directly (not Buffer.toString())
     await shopify.webhooks.process({
-      rawBody: req.body.toString('utf8'),
+      rawBody: req.body, // Already a string from express.text()
       rawRequest: req,
       rawResponse: res,
     });
