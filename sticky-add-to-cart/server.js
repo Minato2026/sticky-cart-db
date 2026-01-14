@@ -89,13 +89,10 @@ console.log('[SHOPIFY API] ✅ Initialized with GDPR webhook handlers');
 
 
 // ================= MIDDLEWARE SETUP =================
-// CRITICAL: Webhook endpoints need RAW STRING body for HMAC verification
+// CRITICAL: Webhook endpoint needs RAW STRING body for HMAC verification
 // Use express.text() to preserve the raw body as a string (not Buffer)
-// Apply to BOTH unified endpoint and legacy specific paths
+// Single consolidated endpoint handles ALL webhooks
 app.use('/api/webhooks', express.text({ type: 'application/json' }));
-app.use('/customers/data_request', express.text({ type: 'application/json' }));
-app.use('/customers/redact', express.text({ type: 'application/json' }));
-app.use('/shop/redact', express.text({ type: 'application/json' }));
 
 // All other routes use JSON parser
 app.use(express.json());
@@ -337,29 +334,36 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// ================= SHOPIFY API WEBHOOK HANDLER =================
+// ================= CONSOLIDATED WEBHOOK HANDLER =================
 
 /**
- * Shared webhook handler function
- * CRITICAL: This uses the registered webhook handlers from shopifyApi initialization
- * This is what makes automated checks pass
+ * CONSOLIDATED ROUTING STRATEGY
+ * Single endpoint handles ALL webhooks including GDPR topics
  * 
- * IMPORTANT FIXES:
- * 1. Express converts all headers to lowercase - use req.headers['x-shopify-*']
- * 2. Return 200 OK immediately to prevent timeout
- * 3. Process webhook asynchronously in background
+ * CRITICAL REQUIREMENTS:
+ * 1. Uses express.text() to preserve raw body for HMAC verification
+ * 2. Reads X-Shopify-Topic header (lowercase) to determine webhook type
+ * 3. GDPR webhooks get immediate 200 OK response
+ * 4. Other webhooks are processed normally
  */
-async function handleWebhook(req, res) {
+app.post('/api/webhooks', async (req, res) => {
   // CRITICAL: Express normalizes headers to lowercase
-  // Do NOT use req.get() or capitalized header names
   const topic = req.headers['x-shopify-topic'];
   const shop = req.headers['x-shopify-shop-domain'];
   const hmac = req.headers['x-shopify-hmac-sha256'];
 
   console.log(`[WEBHOOK] Received: ${topic} from ${shop}`);
 
-  // CRITICAL: Return 200 OK immediately for GDPR webhooks
-  // Process the webhook asynchronously to prevent timeout
+  // CRITICAL: GDPR webhooks MUST return 200 OK immediately
+  // No processing, no database checks, just acknowledge receipt
+  if (topic === 'customers/data_request' ||
+    topic === 'customers/redact' ||
+    topic === 'shop/redact') {
+    console.log(`[GDPR] Acknowledging ${topic} - returning 200 OK immediately`);
+    return res.status(200).send('OK');
+  }
+
+  // For non-GDPR webhooks, return 200 OK and process in background
   res.status(200).send('OK');
 
   // Process webhook in background (don't await)
@@ -369,7 +373,6 @@ async function handleWebhook(req, res) {
 
       // Process webhook using Shopify API
       // This automatically validates HMAC and routes to the correct handler
-      // CRITICAL: Pass raw string body directly (not Buffer.toString())
       await shopify.webhooks.process({
         rawBody: req.body, // Already a string from express.text()
         rawRequest: req,
@@ -385,25 +388,7 @@ async function handleWebhook(req, res) {
       // Just log the error for debugging
     }
   })();
-}
-
-/**
- * DUAL ROUTING STRATEGY
- * Shopify's automated checker may hit either:
- * 1. The unified endpoint: /api/webhooks
- * 2. Legacy specific paths: /customers/data_request, etc.
- * 
- * We handle BOTH to ensure compatibility
- */
-
-// Unified webhook endpoint (modern approach)
-app.post('/api/webhooks', handleWebhook);
-
-// Legacy GDPR-specific endpoints (for automated checker compatibility)
-// These use the EXACT SAME handler as /api/webhooks
-app.post('/customers/data_request', handleWebhook);
-app.post('/customers/redact', handleWebhook);
-app.post('/shop/redact', handleWebhook);
+});
 
 // ================= MANDATORY WEBHOOKS (Legacy specific endpoints) =================
 
