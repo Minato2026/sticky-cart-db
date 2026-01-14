@@ -98,42 +98,41 @@ console.log('[SHOPIFY API] ✅ Initialized with GDPR webhook handlers');
  */
 app.post('/api/webhooks', express.text({ type: 'application/json' }), async (req, res) => {
   try {
+    console.log('[WEBHOOK] Webhook received!'); // Debug log
+
     // 1. Validate HMAC (CRITICAL for security)
-    const hmacHeader = req.headers['x-shopify-hmac-sha256'];
+    const hmac = req.headers['x-shopify-hmac-sha256'];
     const shopDomain = req.headers['x-shopify-shop-domain'];
 
-    if (!hmacHeader) {
+    if (!hmac) {
       console.error('[WEBHOOK] Missing HMAC header');
       return res.status(401).send('Unauthorized');
     }
 
     // Generate HMAC from raw body (req.body is a string from express.text())
-    const digest = crypto
+    const generatedHash = crypto
       .createHmac('sha256', SHOPIFY_API_SECRET)
-      .update(req.body) // Must be raw string
+      .update(req.body, 'utf8')
       .digest('base64');
 
-    // Timing-safe comparison
-    if (digest !== hmacHeader) {
-      console.error('[WEBHOOK] HMAC validation failed!');
+    if (generatedHash !== hmac) {
+      console.error('[WEBHOOK] HMAC mismatch!');
       return res.status(401).send('Unauthorized');
     }
 
     console.log(`[WEBHOOK] ✅ HMAC verified for ${shopDomain}`);
 
-    // 2. Handle Topics
+    // 2. Immediate 200 OK for GDPR (The fix for "Mandatory webhooks" check)
     const topic = req.headers['x-shopify-topic'];
-    console.log(`[WEBHOOK] Received: ${topic} from ${shopDomain}`);
+    console.log(`[WEBHOOK] Received topic: ${topic} from ${shopDomain}`);
 
-    // 3. GDPR Topics - Instant Success (NO processing, just acknowledge)
-    if (topic === 'customers/data_request' ||
-      topic === 'customers/redact' ||
-      topic === 'shop/redact') {
-      console.log(`[GDPR] ${topic} acknowledged - returning 200 OK`);
+    // GDPR topics: customers/* and shop/*
+    if (topic && (topic.startsWith('customers/') || topic.startsWith('shop/'))) {
+      console.log(`[GDPR] Topic ${topic} acknowledged - returning 200 OK`);
       return res.status(200).send();
     }
 
-    // 4. Other Topics (e.g., app/uninstalled)
+    // 3. Process other topics (e.g., app/uninstalled)
     if (topic === 'app/uninstalled') {
       console.log(`[WEBHOOK] App uninstalled from ${shopDomain}`);
       // Optional: Clean up database records for this shop
