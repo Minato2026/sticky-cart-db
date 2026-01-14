@@ -343,36 +343,48 @@ app.get('/auth/callback', async (req, res) => {
  * Shared webhook handler function
  * CRITICAL: This uses the registered webhook handlers from shopifyApi initialization
  * This is what makes automated checks pass
+ * 
+ * IMPORTANT FIXES:
+ * 1. Express converts all headers to lowercase - use req.headers['x-shopify-*']
+ * 2. Return 200 OK immediately to prevent timeout
+ * 3. Process webhook asynchronously in background
  */
 async function handleWebhook(req, res) {
-  try {
-    const topic = req.get('X-Shopify-Topic');
-    const shop = req.get('X-Shopify-Shop-Domain');
-    const hmac = req.get('X-Shopify-Hmac-Sha256');
+  // CRITICAL: Express normalizes headers to lowercase
+  // Do NOT use req.get() or capitalized header names
+  const topic = req.headers['x-shopify-topic'];
+  const shop = req.headers['x-shopify-shop-domain'];
+  const hmac = req.headers['x-shopify-hmac-sha256'];
 
-    console.log(`[WEBHOOK] Processing: ${topic} from ${shop}`);
+  console.log(`[WEBHOOK] Received: ${topic} from ${shop}`);
 
-    // Process webhook using Shopify API
-    // This automatically validates HMAC and routes to the correct handler
-    // CRITICAL: Pass raw string body directly (not Buffer.toString())
-    await shopify.webhooks.process({
-      rawBody: req.body, // Already a string from express.text()
-      rawRequest: req,
-      rawResponse: res,
-    });
+  // CRITICAL: Return 200 OK immediately for GDPR webhooks
+  // Process the webhook asynchronously to prevent timeout
+  res.status(200).send('OK');
 
-    console.log(`[WEBHOOK] ✅ Successfully processed: ${topic}`);
-  } catch (error) {
-    console.error('[WEBHOOK] ❌ Error processing webhook:', error.message);
+  // Process webhook in background (don't await)
+  (async () => {
+    try {
+      console.log(`[WEBHOOK] Processing: ${topic} from ${shop}`);
 
-    // If webhook processing failed, still return 200 to prevent retries
-    // (unless it's a validation error, in which case return 401)
-    if (error.message.includes('HMAC') || error.message.includes('Invalid')) {
-      return res.status(401).send('Unauthorized');
+      // Process webhook using Shopify API
+      // This automatically validates HMAC and routes to the correct handler
+      // CRITICAL: Pass raw string body directly (not Buffer.toString())
+      await shopify.webhooks.process({
+        rawBody: req.body, // Already a string from express.text()
+        rawRequest: req,
+        rawResponse: res,
+      });
+
+      console.log(`[WEBHOOK] ✅ Successfully processed: ${topic}`);
+    } catch (error) {
+      console.error('[WEBHOOK] ❌ Error processing webhook:', error.message);
+      console.error('[WEBHOOK] Error details:', error);
+
+      // Note: We already sent 200 OK, so we can't change the response
+      // Just log the error for debugging
     }
-
-    res.status(200).send('OK');
-  }
+  })();
 }
 
 /**
