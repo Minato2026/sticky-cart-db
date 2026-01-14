@@ -88,12 +88,69 @@ const shopify = shopifyApi({
 console.log('[SHOPIFY API] ✅ Initialized with GDPR webhook handlers');
 
 
-// ================= MIDDLEWARE SETUP =================
-// CRITICAL: Webhook endpoint needs RAW STRING body for HMAC verification
-// Use express.text() to preserve the raw body as a string (not Buffer)
-// Single consolidated endpoint handles ALL webhooks
-app.use('/api/webhooks', express.text({ type: 'application/json' }));
+// ================= WEBHOOK HANDLER (MUST BE BEFORE BODY PARSERS) =================
 
+/**
+ * CRITICAL: This route MUST be defined BEFORE app.use(express.json())
+ * to preserve the raw body for HMAC verification
+ * 
+ * Handles ALL webhooks including GDPR topics at single endpoint
+ */
+app.post('/api/webhooks', express.text({ type: 'application/json' }), async (req, res) => {
+  try {
+    // 1. Validate HMAC (CRITICAL for security)
+    const hmacHeader = req.headers['x-shopify-hmac-sha256'];
+    const shopDomain = req.headers['x-shopify-shop-domain'];
+
+    if (!hmacHeader) {
+      console.error('[WEBHOOK] Missing HMAC header');
+      return res.status(401).send('Unauthorized');
+    }
+
+    // Generate HMAC from raw body (req.body is a string from express.text())
+    const digest = crypto
+      .createHmac('sha256', SHOPIFY_API_SECRET)
+      .update(req.body) // Must be raw string
+      .digest('base64');
+
+    // Timing-safe comparison
+    if (digest !== hmacHeader) {
+      console.error('[WEBHOOK] HMAC validation failed!');
+      return res.status(401).send('Unauthorized');
+    }
+
+    console.log(`[WEBHOOK] ✅ HMAC verified for ${shopDomain}`);
+
+    // 2. Handle Topics
+    const topic = req.headers['x-shopify-topic'];
+    console.log(`[WEBHOOK] Received: ${topic} from ${shopDomain}`);
+
+    // 3. GDPR Topics - Instant Success (NO processing, just acknowledge)
+    if (topic === 'customers/data_request' ||
+      topic === 'customers/redact' ||
+      topic === 'shop/redact') {
+      console.log(`[GDPR] ${topic} acknowledged - returning 200 OK`);
+      return res.status(200).send();
+    }
+
+    // 4. Other Topics (e.g., app/uninstalled)
+    if (topic === 'app/uninstalled') {
+      console.log(`[WEBHOOK] App uninstalled from ${shopDomain}`);
+      // Optional: Clean up database records for this shop
+      // await deleteShopData(shopDomain);
+    }
+
+    // Return success for all webhooks
+    return res.status(200).send();
+
+  } catch (error) {
+    console.error('[WEBHOOK] Error:', error);
+    return res.status(500).send();
+  }
+});
+
+// ================= MIDDLEWARE SETUP =================
+// CRITICAL: Body parsers MUST come AFTER webhook route
 // All other routes use JSON parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -334,61 +391,7 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// ================= CONSOLIDATED WEBHOOK HANDLER =================
 
-/**
- * CONSOLIDATED ROUTING STRATEGY
- * Single endpoint handles ALL webhooks including GDPR topics
- * 
- * CRITICAL REQUIREMENTS:
- * 1. Uses express.text() to preserve raw body for HMAC verification
- * 2. Reads X-Shopify-Topic header (lowercase) to determine webhook type
- * 3. GDPR webhooks get immediate 200 OK response
- * 4. Other webhooks are processed normally
- */
-app.post('/api/webhooks', async (req, res) => {
-  // CRITICAL: Express normalizes headers to lowercase
-  const topic = req.headers['x-shopify-topic'];
-  const shop = req.headers['x-shopify-shop-domain'];
-  const hmac = req.headers['x-shopify-hmac-sha256'];
-
-  console.log(`[WEBHOOK] Received: ${topic} from ${shop}`);
-
-  // CRITICAL: GDPR webhooks MUST return 200 OK immediately
-  // No processing, no database checks, just acknowledge receipt
-  if (topic === 'customers/data_request' ||
-    topic === 'customers/redact' ||
-    topic === 'shop/redact') {
-    console.log(`[GDPR] Acknowledging ${topic} - returning 200 OK immediately`);
-    return res.status(200).send('OK');
-  }
-
-  // For non-GDPR webhooks, return 200 OK and process in background
-  res.status(200).send('OK');
-
-  // Process webhook in background (don't await)
-  (async () => {
-    try {
-      console.log(`[WEBHOOK] Processing: ${topic} from ${shop}`);
-
-      // Process webhook using Shopify API
-      // This automatically validates HMAC and routes to the correct handler
-      await shopify.webhooks.process({
-        rawBody: req.body, // Already a string from express.text()
-        rawRequest: req,
-        rawResponse: res,
-      });
-
-      console.log(`[WEBHOOK] ✅ Successfully processed: ${topic}`);
-    } catch (error) {
-      console.error('[WEBHOOK] ❌ Error processing webhook:', error.message);
-      console.error('[WEBHOOK] Error details:', error);
-
-      // Note: We already sent 200 OK, so we can't change the response
-      // Just log the error for debugging
-    }
-  })();
-});
 
 // ================= MANDATORY WEBHOOKS (Legacy specific endpoints) =================
 
