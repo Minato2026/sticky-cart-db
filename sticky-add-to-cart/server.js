@@ -171,9 +171,11 @@ function verifyOAuthHmac(query) {
 // ================= WEBHOOK REGISTRATION =================
 
 /**
- * Register mandatory webhooks with Shopify
- * CRITICAL: This is WHY automated checks pass
- * Shopify verifies that webhooks are registered, not just that endpoints exist
+ * Register webhooks with Shopify
+ * NOTE: GDPR webhooks (customers/data_request, customers/redact, shop/redact) 
+ * are NOT registered here because they are MANDATORY webhooks.
+ * Shopify automatically manages these and rejects manual registration attempts.
+ * We only register optional webhooks like app/uninstalled.
  */
 async function registerWebhooks(shop, accessToken) {
   const webhooks = [
@@ -181,22 +183,9 @@ async function registerWebhooks(shop, accessToken) {
       topic: 'app/uninstalled',
       address: `${HOST}/api/webhooks/app/uninstalled`,
       format: 'json'
-    },
-    {
-      topic: 'customers/data_request',
-      address: `${HOST}/api/webhooks/customers/data_request`,
-      format: 'json'
-    },
-    {
-      topic: 'customers/redact',
-      address: `${HOST}/api/webhooks/customers/redact`,
-      format: 'json'
-    },
-    {
-      topic: 'shop/redact',
-      address: `${HOST}/api/webhooks/shop/redact`,
-      format: 'json'
     }
+    // GDPR webhooks (customers/data_request, customers/redact, shop/redact) 
+    // are NOT registered - they are mandatory and handled automatically by Shopify
   ];
 
   console.log(`[WEBHOOKS] Registering ${webhooks.length} webhooks for ${shop}...`);
