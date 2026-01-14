@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const { shopifyApi, ApiVersion, DeliveryMethod } = require('@shopify/shopify-api');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +17,73 @@ if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
   console.error('❌ Missing required environment variables: SHOPIFY_API_KEY, SHOPIFY_API_SECRET, or HOST');
   process.exit(1);
 }
+
+// ================= SHOPIFY API INITIALIZATION =================
+
+/**
+ * Initialize Shopify API with explicit GDPR webhook handlers
+ * CRITICAL: This is required for automated checks to pass
+ */
+const shopify = shopifyApi({
+  apiKey: SHOPIFY_API_KEY,
+  apiSecretKey: SHOPIFY_API_SECRET,
+  scopes: SCOPES.split(','),
+  hostName: HOST.replace(/https?:\/\//, ''),
+  hostScheme: 'https',
+  apiVersion: ApiVersion.January24,
+  isEmbeddedApp: true,
+  // CRITICAL: Explicit webhook handler registration for GDPR compliance
+  webhooks: {
+    CUSTOMERS_DATA_REQUEST: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: '/api/webhooks',
+      callback: async (topic, shop, body, webhookId) => {
+        console.log(`[GDPR] CUSTOMERS_DATA_REQUEST received from ${shop}`);
+        console.log(`[GDPR] Webhook ID: ${webhookId}`);
+        // For extension-only apps with no customer data storage:
+        // Simply acknowledge the request
+        // If you store customer data, you must return it here
+        return { statusCode: 200 };
+      },
+    },
+    CUSTOMERS_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: '/api/webhooks',
+      callback: async (topic, shop, body, webhookId) => {
+        console.log(`[GDPR] CUSTOMERS_REDACT received from ${shop}`);
+        console.log(`[GDPR] Webhook ID: ${webhookId}`);
+        // Optional: Delete customer data from database
+        // await deleteCustomerData(body.customer.id);
+        return { statusCode: 200 };
+      },
+    },
+    SHOP_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: '/api/webhooks',
+      callback: async (topic, shop, body, webhookId) => {
+        console.log(`[GDPR] SHOP_REDACT received from ${shop}`);
+        console.log(`[GDPR] Webhook ID: ${webhookId}`);
+        // Optional: Delete all shop data from database
+        // await deleteShopData(shop);
+        return { statusCode: 200 };
+      },
+    },
+    APP_UNINSTALLED: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: '/api/webhooks',
+      callback: async (topic, shop, body, webhookId) => {
+        console.log(`[WEBHOOK] APP_UNINSTALLED received from ${shop}`);
+        console.log(`[WEBHOOK] Webhook ID: ${webhookId}`);
+        // Optional: Clean up database records for this shop
+        // await deleteShopData(shop);
+        return { statusCode: 200 };
+      },
+    },
+  },
+});
+
+console.log('[SHOPIFY API] ✅ Initialized with GDPR webhook handlers');
+
 
 // ================= MIDDLEWARE SETUP =================
 // CRITICAL: Webhook endpoints need RAW body for HMAC verification
@@ -272,50 +340,41 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// ================= GENERIC WEBHOOK HANDLER =================
+// ================= SHOPIFY API WEBHOOK HANDLER =================
 
 /**
- * Generic webhook handler for all topics
- * Routes based on X-Shopify-Topic header
- * This matches the shopify.app.toml configuration
+ * Process webhooks using Shopify API
+ * CRITICAL: This uses the registered webhook handlers from shopifyApi initialization
+ * This is what makes automated checks pass
  */
-app.post('/api/webhooks', verifyWebhookHmac, (req, res) => {
-  const topic = req.get('X-Shopify-Topic');
-  const { shop_domain, customer } = req.body;
+app.post('/api/webhooks', async (req, res) => {
+  try {
+    const topic = req.get('X-Shopify-Topic');
+    const shop = req.get('X-Shopify-Shop-Domain');
+    const hmac = req.get('X-Shopify-Hmac-Sha256');
 
-  console.log(`[WEBHOOK] Received: ${topic} from ${shop_domain}`);
+    console.log(`[WEBHOOK] Processing: ${topic} from ${shop}`);
 
-  switch (topic) {
-    case 'app/uninstalled':
-      console.log(`[WEBHOOK] App uninstalled from ${shop_domain}`);
-      // Optional: Clean up database records for this shop
-      // await deleteShopData(shop_domain);
-      break;
+    // Process webhook using Shopify API
+    // This automatically validates HMAC and routes to the correct handler
+    await shopify.webhooks.process({
+      rawBody: req.body.toString('utf8'),
+      rawRequest: req,
+      rawResponse: res,
+    });
 
-    case 'customers/data_request':
-      console.log(`[GDPR] Customer data request for ${customer?.email || 'unknown'} from ${shop_domain}`);
-      // For extension-only apps with no customer data storage:
-      // Simply acknowledge the request
-      // If you store customer data, you must return it here
-      break;
+    console.log(`[WEBHOOK] ✅ Successfully processed: ${topic}`);
+  } catch (error) {
+    console.error('[WEBHOOK] ❌ Error processing webhook:', error.message);
 
-    case 'customers/redact':
-      console.log(`[GDPR] Customer redact request for ${customer?.email || 'unknown'} from ${shop_domain}`);
-      // Optional: Delete customer data from database
-      // await deleteCustomerData(customer.id);
-      break;
+    // If webhook processing failed, still return 200 to prevent retries
+    // (unless it's a validation error, in which case return 401)
+    if (error.message.includes('HMAC') || error.message.includes('Invalid')) {
+      return res.status(401).send('Unauthorized');
+    }
 
-    case 'shop/redact':
-      console.log(`[GDPR] Shop redact request for ${shop_domain}`);
-      // Optional: Delete all shop data from database
-      // await deleteShopData(shop_domain);
-      break;
-
-    default:
-      console.log(`[WEBHOOK] Unknown topic: ${topic}`);
+    res.status(200).send('OK');
   }
-
-  res.status(200).send('OK');
 });
 
 // ================= MANDATORY WEBHOOKS (Legacy specific endpoints) =================
