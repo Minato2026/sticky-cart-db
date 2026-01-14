@@ -91,7 +91,11 @@ console.log('[SHOPIFY API] ✅ Initialized with GDPR webhook handlers');
 // ================= MIDDLEWARE SETUP =================
 // CRITICAL: Webhook endpoints need RAW STRING body for HMAC verification
 // Use express.text() to preserve the raw body as a string (not Buffer)
+// Apply to BOTH unified endpoint and legacy specific paths
 app.use('/api/webhooks', express.text({ type: 'application/json' }));
+app.use('/customers/data_request', express.text({ type: 'application/json' }));
+app.use('/customers/redact', express.text({ type: 'application/json' }));
+app.use('/shop/redact', express.text({ type: 'application/json' }));
 
 // All other routes use JSON parser
 app.use(express.json());
@@ -336,11 +340,11 @@ app.get('/auth/callback', async (req, res) => {
 // ================= SHOPIFY API WEBHOOK HANDLER =================
 
 /**
- * Process webhooks using Shopify API
+ * Shared webhook handler function
  * CRITICAL: This uses the registered webhook handlers from shopifyApi initialization
  * This is what makes automated checks pass
  */
-app.post('/api/webhooks', async (req, res) => {
+async function handleWebhook(req, res) {
   try {
     const topic = req.get('X-Shopify-Topic');
     const shop = req.get('X-Shopify-Shop-Domain');
@@ -369,7 +373,25 @@ app.post('/api/webhooks', async (req, res) => {
 
     res.status(200).send('OK');
   }
-});
+}
+
+/**
+ * DUAL ROUTING STRATEGY
+ * Shopify's automated checker may hit either:
+ * 1. The unified endpoint: /api/webhooks
+ * 2. Legacy specific paths: /customers/data_request, etc.
+ * 
+ * We handle BOTH to ensure compatibility
+ */
+
+// Unified webhook endpoint (modern approach)
+app.post('/api/webhooks', handleWebhook);
+
+// Legacy GDPR-specific endpoints (for automated checker compatibility)
+// These use the EXACT SAME handler as /api/webhooks
+app.post('/customers/data_request', handleWebhook);
+app.post('/customers/redact', handleWebhook);
+app.post('/shop/redact', handleWebhook);
 
 // ================= MANDATORY WEBHOOKS (Legacy specific endpoints) =================
 
