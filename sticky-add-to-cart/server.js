@@ -63,6 +63,34 @@ app.post(
   }
 );
 
+// ================= GDPR / PRIVACY WEBHOOKS =================
+// Shopify looks specifically for this endpoint
+app.post(
+  '/webhooks/privacy',
+  express.text({ type: '*/*' }),
+  (req, res) => {
+    const hmac = req.headers['x-shopify-hmac-sha256'];
+
+    const generatedHmac = crypto
+      .createHmac('sha256', process.env.SHOPIFY_API_SECRET)
+      .update(req.body, 'utf8')
+      .digest('base64');
+
+    if (!hmac || generatedHmac !== hmac) {
+      console.error('[PRIVACY WEBHOOK] ❌ HMAC verification failed');
+      return res.status(401).send('Unauthorized');
+    }
+
+    const topic = req.headers['x-shopify-topic'];
+    const shop = req.headers['x-shopify-shop-domain'];
+
+    console.log(`[PRIVACY WEBHOOK] ✅ ${topic} from ${shop}`);
+
+    // IMPORTANT: Always respond 200 to satisfy Shopify checks
+    return res.status(200).send();
+  }
+);
+
 // ================= BODY PARSERS =================
 // CRITICAL: MUST come AFTER webhook route
 app.use(express.json());
