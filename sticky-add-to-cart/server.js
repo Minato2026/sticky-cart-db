@@ -91,17 +91,67 @@ function verifyOAuthHmac(query) {
 
 // ================= REGISTER WEBHOOK =================
 async function registerWebhooks(shop, accessToken) {
-  const topics = [
-    'app/uninstalled',
-    'customers/data_request',
-    'customers/redact',
-    'shop/redact'
+  // Register app/uninstalled via REST API
+  try {
+    const response = await fetch(
+      `https://${shop}/admin/api/${API_VERSION}/webhooks.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': accessToken
+        },
+        body: JSON.stringify({
+          webhook: {
+            topic: 'app/uninstalled',
+            address: `${HOST}/api/webhooks`,
+            format: 'json'
+          }
+        })
+      }
+    );
+
+    if (response.ok) {
+      console.log('[WEBHOOK] ✅ Registered app/uninstalled (REST)');
+    } else {
+      const error = await response.text();
+      console.error('[WEBHOOK] ❌ REST registration failed for app/uninstalled:', error);
+    }
+  } catch (error) {
+    console.error('[WEBHOOK] ❌ Error registering app/uninstalled:', error.message);
+  }
+
+  // Register GDPR webhooks via GraphQL API
+  const gdprTopics = [
+    'CUSTOMERS_DATA_REQUEST',
+    'CUSTOMERS_REDACT',
+    'SHOP_REDACT'
   ];
 
-  for (const topic of topics) {
+  for (const topic of gdprTopics) {
     try {
+      const mutation = `
+        mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $callbackUrl: URL!) {
+          webhookSubscriptionCreate(
+            topic: $topic
+            webhookSubscription: {
+              callbackUrl: $callbackUrl
+              format: JSON
+            }
+          ) {
+            userErrors {
+              field
+              message
+            }
+            webhookSubscription {
+              id
+            }
+          }
+        }
+      `;
+
       const response = await fetch(
-        `https://${shop}/admin/api/${API_VERSION}/webhooks.json`,
+        `https://${shop}/admin/api/${API_VERSION}/graphql.json`,
         {
           method: 'POST',
           headers: {
@@ -109,20 +159,23 @@ async function registerWebhooks(shop, accessToken) {
             'X-Shopify-Access-Token': accessToken
           },
           body: JSON.stringify({
-            webhook: {
+            query: mutation,
+            variables: {
               topic: topic,
-              address: `${HOST}/api/webhooks`,
-              format: 'json'
+              callbackUrl: `${HOST}/api/webhooks`
             }
           })
         }
       );
 
-      if (response.ok) {
-        console.log(`[WEBHOOK] ✅ Registered ${topic}`);
+      const result = await response.json();
+
+      if (result.data?.webhookSubscriptionCreate?.userErrors?.length > 0) {
+        console.error(`[WEBHOOK] ❌ GraphQL errors for ${topic}:`, result.data.webhookSubscriptionCreate.userErrors);
+      } else if (result.data?.webhookSubscriptionCreate?.webhookSubscription) {
+        console.log(`[WEBHOOK] ✅ Registered ${topic} (GraphQL)`);
       } else {
-        const error = await response.text();
-        console.error(`[WEBHOOK] ❌ Registration failed for ${topic}:`, error);
+        console.error(`[WEBHOOK] ❌ Unexpected response for ${topic}:`, result);
       }
     } catch (error) {
       console.error(`[WEBHOOK] ❌ Error registering ${topic}:`, error.message);
