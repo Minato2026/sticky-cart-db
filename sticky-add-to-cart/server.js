@@ -177,9 +177,12 @@ app.get('/auth/callback', async (req, res) => {
     // Register webhooks
     await registerWebhooks(shop, access_token);
 
-    // Redirect to embedded app UI
-    const hostParam = host || Buffer.from(`${shop}/admin`).toString('base64');
-    return res.redirect(`/app?shop=${shop}&host=${hostParam}`);
+    // Redirect to Shopify Admin embedded app
+    const embeddedUrl =
+      `https://admin.shopify.com/store/${shop.replace('.myshopify.com', '')}` +
+      `/apps/${process.env.SHOPIFY_API_KEY}`;
+
+    return res.redirect(embeddedUrl);
   } catch (error) {
     console.error('[AUTH ERROR]', error);
     return res.status(500).send('OAuth failed');
