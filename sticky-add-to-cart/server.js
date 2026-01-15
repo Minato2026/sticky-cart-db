@@ -67,26 +67,32 @@ app.post(
 // Shopify looks specifically for this endpoint
 app.post(
   '/webhooks/privacy',
-  express.text({ type: '*/*' }),
+  express.raw({ type: 'application/json' }),
   (req, res) => {
     const hmac = req.headers['x-shopify-hmac-sha256'];
 
+    if (!hmac) {
+      console.error('[PRIVACY WEBHOOK] ❌ Missing HMAC header');
+      return res.status(401).send('Unauthorized');
+    }
+
     const generatedHmac = crypto
       .createHmac('sha256', process.env.SHOPIFY_API_SECRET)
-      .update(req.body, 'utf8')
+      .update(req.body)
       .digest('base64');
 
-    if (!hmac || generatedHmac !== hmac) {
+    if (generatedHmac !== hmac) {
       console.error('[PRIVACY WEBHOOK] ❌ HMAC verification failed');
       return res.status(401).send('Unauthorized');
     }
 
+    console.log('[HMAC] ✅ Valid webhook signature');
+
     const topic = req.headers['x-shopify-topic'];
     const shop = req.headers['x-shopify-shop-domain'];
 
-    console.log(`[PRIVACY WEBHOOK] ✅ ${topic} from ${shop}`);
+    console.log(`[PRIVACY] ✅ ${topic}`);
 
-    // IMPORTANT: Always respond 200 to satisfy Shopify checks
     return res.status(200).send();
   }
 );
