@@ -27,7 +27,7 @@ if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
 // CRITICAL: MUST be before body parsers
 app.post(
   '/api/webhooks',
-  express.text({ type: 'application/json' }),
+  express.text({ type: '*/*' }),
   (req, res) => {
     const hmac = req.headers['x-shopify-hmac-sha256'];
     const topic = req.headers['x-shopify-topic'];
