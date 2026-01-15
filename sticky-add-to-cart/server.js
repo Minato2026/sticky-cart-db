@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 // ================= ENV VARIABLES =================
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
-const HOST = process.env.HOST; // https://your-app.onrender.com
+const HOST = process.env.HOST;
 const SCOPES = process.env.SCOPES || 'write_themes';
 const API_VERSION = '2024-01';
 
@@ -23,14 +23,21 @@ if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
   process.exit(1);
 }
 
-// ================= WEBHOOK (RAW BODY) =================
-// MUST be before body parsers
+// ================= UNIVERSAL WEBHOOK ENDPOINT =================
+// CRITICAL: MUST be before body parsers
 app.post(
-  '/api/webhooks/app-uninstalled',
+  '/api/webhooks',
   express.text({ type: 'application/json' }),
   (req, res) => {
     const hmac = req.headers['x-shopify-hmac-sha256'];
-    if (!hmac) return res.status(401).send('Unauthorized');
+    const topic = req.headers['x-shopify-topic'];
+    const shop = req.headers['x-shopify-shop-domain'];
+
+    // Validate HMAC
+    if (!hmac) {
+      console.error('[WEBHOOK] Missing HMAC header');
+      return res.status(401).send('Unauthorized');
+    }
 
     const generatedHmac = crypto
       .createHmac('sha256', SHOPIFY_API_SECRET)
@@ -38,14 +45,26 @@ app.post(
       .digest('base64');
 
     if (generatedHmac !== hmac) {
+      console.error('[WEBHOOK] HMAC verification failed');
       return res.status(401).send('Unauthorized');
     }
 
-    return res.status(200).send('OK');
+    // HMAC valid - log and return 200 immediately
+    console.log(`[WEBHOOK] ✅ ${topic} from ${shop}`);
+
+    // Handle specific topics if needed
+    if (topic === 'app/uninstalled') {
+      console.log(`[WEBHOOK] App uninstalled from ${shop}`);
+      // Optional: Clean up data here
+    }
+
+    // Always return 200 OK
+    return res.status(200).send();
   }
 );
 
 // ================= BODY PARSERS =================
+// CRITICAL: MUST come AFTER webhook route
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -72,20 +91,34 @@ function verifyOAuthHmac(query) {
 
 // ================= REGISTER WEBHOOK =================
 async function registerWebhooks(shop, accessToken) {
-  await fetch(`https://${shop}/admin/api/${API_VERSION}/webhooks.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken
-    },
-    body: JSON.stringify({
-      webhook: {
-        topic: 'app/uninstalled',
-        address: `${HOST}/api/webhooks/app-uninstalled`,
-        format: 'json'
+  try {
+    const response = await fetch(
+      `https://${shop}/admin/api/${API_VERSION}/webhooks.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': accessToken
+        },
+        body: JSON.stringify({
+          webhook: {
+            topic: 'app/uninstalled',
+            address: `${HOST}/api/webhooks`,
+            format: 'json'
+          }
+        })
       }
-    })
-  });
+    );
+
+    if (response.ok) {
+      console.log('[WEBHOOK] ✅ Registered app/uninstalled');
+    } else {
+      const error = await response.text();
+      console.error('[WEBHOOK] ❌ Registration failed:', error);
+    }
+  } catch (error) {
+    console.error('[WEBHOOK] ❌ Error:', error.message);
+  }
 }
 
 // ================= HEALTH CHECK =================
@@ -113,7 +146,7 @@ app.get('/auth', (req, res) => {
 app.get('/auth/callback', async (req, res) => {
   const { shop, code, host } = req.query;
 
-  if (!shop || !code || !host) {
+  if (!shop || !code) {
     return res.status(400).send('Missing OAuth parameters');
   }
 
@@ -135,12 +168,18 @@ app.get('/auth/callback', async (req, res) => {
       }
     );
 
+    if (!tokenRes.ok) {
+      return res.status(500).send('Failed to exchange token');
+    }
+
     const { access_token } = await tokenRes.json();
 
+    // Register webhooks
     await registerWebhooks(shop, access_token);
 
-    // ✅ CRITICAL REDIRECT (Automated Checks PASS)
-    return res.redirect(`/app?shop=${shop}&host=${host}`);
+    // Redirect to embedded app UI
+    const hostParam = host || Buffer.from(`${shop}/admin`).toString('base64');
+    return res.redirect(`/app?shop=${shop}&host=${hostParam}`);
   } catch (error) {
     console.error('[AUTH ERROR]', error);
     return res.status(500).send('OAuth failed');
@@ -163,11 +202,46 @@ app.get('/app', (req, res) => {
 <html>
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sticky Add to Cart</title>
   <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 40px;
+      background: #f6f6f7;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #202223;
+      margin-top: 0;
+    }
+    .status {
+      padding: 16px;
+      background: #d4f5e9;
+      border-left: 4px solid #00a47c;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+  </style>
 </head>
 <body>
-  <h1>✅ App Installed Successfully</h1>
+  <div class="container">
+    <h1>✅ Sticky Add to Cart</h1>
+    <div class="status">
+      <strong>Status:</strong> App installed successfully!
+    </div>
+    <p><strong>Shop:</strong> ${shop}</p>
+    <p>Your sticky add-to-cart feature is now active on your storefront.</p>
+  </div>
 
   <script>
     var AppBridge = window['app-bridge'];
@@ -178,6 +252,8 @@ app.get('/app', (req, res) => {
       host: '${host}',
       forceRedirect: true
     });
+
+    console.log('[APP BRIDGE] Initialized');
   </script>
 </body>
 </html>
