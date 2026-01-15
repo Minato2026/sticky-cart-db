@@ -91,33 +91,42 @@ function verifyOAuthHmac(query) {
 
 // ================= REGISTER WEBHOOK =================
 async function registerWebhooks(shop, accessToken) {
-  try {
-    const response = await fetch(
-      `https://${shop}/admin/api/${API_VERSION}/webhooks.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': accessToken
-        },
-        body: JSON.stringify({
-          webhook: {
-            topic: 'app/uninstalled',
-            address: `${HOST}/api/webhooks`,
-            format: 'json'
-          }
-        })
-      }
-    );
+  const topics = [
+    'app/uninstalled',
+    'customers/data_request',
+    'customers/redact',
+    'shop/redact'
+  ];
 
-    if (response.ok) {
-      console.log('[WEBHOOK] ✅ Registered app/uninstalled');
-    } else {
-      const error = await response.text();
-      console.error('[WEBHOOK] ❌ Registration failed:', error);
+  for (const topic of topics) {
+    try {
+      const response = await fetch(
+        `https://${shop}/admin/api/${API_VERSION}/webhooks.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken
+          },
+          body: JSON.stringify({
+            webhook: {
+              topic: topic,
+              address: `${HOST}/api/webhooks`,
+              format: 'json'
+            }
+          })
+        }
+      );
+
+      if (response.ok) {
+        console.log(`[WEBHOOK] ✅ Registered ${topic}`);
+      } else {
+        const error = await response.text();
+        console.error(`[WEBHOOK] ❌ Registration failed for ${topic}:`, error);
+      }
+    } catch (error) {
+      console.error(`[WEBHOOK] ❌ Error registering ${topic}:`, error.message);
     }
-  } catch (error) {
-    console.error('[WEBHOOK] ❌ Error:', error.message);
   }
 }
 
