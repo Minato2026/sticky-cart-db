@@ -23,14 +23,9 @@ uri = "/api/webhooks"
 topics = ["shop/redact"]
 uri = "/api/webhooks"
 
-[webhooks.privacy_compliance]
-customer_data_request_url = "https://sticky-cart-db.onrender.com/api/webhooks/customers/data_request"
-customer_redact_url = "https://sticky-cart-db.onrender.com/api/webhooks/customers/redact"
-shop_redact_url = "https://sticky-cart-db.onrender.com/api/webhooks/shop/redact"
-
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = ""
+scopes = "write_themes"
 
 [auth]
 redirect_urls = [
