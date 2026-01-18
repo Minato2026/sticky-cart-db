@@ -39,23 +39,31 @@ app.post(
       return res.status(401).send('Unauthorized');
     }
 
+    // CRITICAL FIX: Do NOT add 'utf8' encoding - express.text() already provides a string
     const generatedHmac = crypto
       .createHmac('sha256', SHOPIFY_API_SECRET)
-      .update(req.body, 'utf8')
+      .update(req.body)
       .digest('base64');
 
     if (generatedHmac !== hmac) {
       console.error('[WEBHOOK] HMAC verification failed');
+      console.error('[WEBHOOK] Expected:', hmac);
+      console.error('[WEBHOOK] Generated:', generatedHmac);
       return res.status(401).send('Unauthorized');
     }
 
     // HMAC valid - log and return 200 immediately
     console.log(`[WEBHOOK] ✅ ${topic} from ${shop}`);
+    console.log('[HMAC] ✅ Valid webhook signature');
 
     // Handle specific topics if needed
     if (topic === 'app/uninstalled') {
       console.log(`[WEBHOOK] App uninstalled from ${shop}`);
       // Optional: Clean up data here
+    }
+
+    if (topic === 'customers/data_request' || topic === 'customers/redact' || topic === 'shop/redact') {
+      console.log(`[PRIVACY] ✅ ${topic}`);
     }
 
     // Always return 200 OK
