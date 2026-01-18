@@ -7,7 +7,7 @@
 ```bash
 # CRITICAL: Set these in Render Dashboard → Environment
 SHOPIFY_API_SECRET=your_client_secret_from_partners_dashboard
-SHOPIFY_API_KEY=5a2e451bcc74511f8be6157b743711f1
+SHOPIFY_API_KEY=009b50554c5e2d1d08ab29ccdabb133b
 PORT=10000
 NODE_ENV=production
 ```
