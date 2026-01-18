@@ -5,25 +5,34 @@ name = "Sticky Cart - V2"
 application_url = "https://sticky-cart-v2.onrender.com"
 embedded = true
 
+[build]
+automatically_update_urls_on_dev = true
+
 [webhooks]
 api_version = "2026-01"
 
-# 1. الاشتراكات العادية (الأحداث)
 [[webhooks.subscriptions]]
-topics = [ "app/uninstalled" ]
+topics = ["app/uninstalled"]
 uri = "/api/webhooks"
 
-# 2. اشتراكات الخصوصية الإجبارية (GDPR) - هذا هو القسم الجديد!
-[webhooks.privacy_compliance]
-customer_data_request_url = "https://sticky-cart-v2.onrender.com/api/webhooks"
-customer_redact_url = "https://sticky-cart-v2.onrender.com/api/webhooks"
-shop_redact_url = "https://sticky-cart-v2.onrender.com/api/webhooks"
+[[webhooks.subscriptions]]
+topics = ["customers/data_request"]
+uri = "/api/webhooks"
+
+[[webhooks.subscriptions]]
+topics = ["customers/redact"]
+uri = "/api/webhooks"
+
+[[webhooks.subscriptions]]
+topics = ["shop/redact"]
+uri = "/api/webhooks"
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "write_themes"
-optional_scopes = [ ]
-use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "https://sticky-cart-v2.onrender.com/auth/callback" ]
+redirect_urls = [
+  "https://sticky-cart-v2.onrender.com/auth/callback",
+  "https://sticky-cart-v2.onrender.com/auth/shopify/callback",
+  "https://sticky-cart-v2.onrender.com/api/auth/callback"
+]
