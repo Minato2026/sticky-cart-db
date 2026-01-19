@@ -4,6 +4,7 @@ require('@shopify/shopify-api/adapters/node');
 // ================= IMPORTS =================
 const express = require('express');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const fetch = (...args) =>
   import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
@@ -81,6 +82,39 @@ app.post(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ================= SESSION TOKEN VERIFICATION =================
+// Middleware to verify Shopify session tokens (JWT)
+function verifySessionToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.error('[SESSION TOKEN] Missing or invalid Authorization header');
+    return res.status(401).json({ error: 'Unauthorized - No session token' });
+  }
+
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+  try {
+    // Verify JWT using Shopify API Secret
+    const decoded = jwt.verify(token, SHOPIFY_API_SECRET, {
+      algorithms: ['HS256']
+    });
+
+    // Extract shop domain from token
+    const shop = decoded.dest.replace('https://', '');
+
+    // Attach shop to request for use in route handlers
+    req.shop = shop;
+    req.sessionToken = decoded;
+
+    console.log(`[SESSION TOKEN] ✅ Verified for shop: ${shop}`);
+    next();
+  } catch (error) {
+    console.error('[SESSION TOKEN] ❌ Verification failed:', error.message);
+    return res.status(401).json({ error: 'Invalid session token' });
+  }
+}
+
 // ================= OAUTH HMAC VERIFY =================
 function verifyOAuthHmac(query) {
   const { hmac, ...params } = query;
@@ -134,6 +168,18 @@ async function registerWebhooks(shop, accessToken) {
     console.error('[WEBHOOK] ❌ Error:', error.message);
   }
 }
+
+// ================= PROTECTED API ENDPOINT =================
+// Example endpoint that requires session token authentication
+app.get('/api/data', verifySessionToken, (req, res) => {
+  // req.shop is available from the verified session token
+  res.json({
+    success: true,
+    shop: req.shop,
+    message: 'Session token verified successfully!',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // ================= HEALTH CHECK =================
 app.get('/', (_, res) => {
@@ -248,6 +294,28 @@ app.get('/app', (req, res) => {
       border-radius: 4px;
       margin: 20px 0;
     }
+    button {
+      background: #008060;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    button:hover {
+      background: #006e52;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 12px;
+      background: #f1f2f4;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -258,19 +326,63 @@ app.get('/app', (req, res) => {
     </div>
     <p><strong>Shop:</strong> ${shop}</p>
     <p>Your sticky add-to-cart feature is now active on your storefront.</p>
+    
+    <button onclick="testSessionToken()">Test Session Token</button>
+    <div id="result"></div>
   </div>
 
   <script>
     var AppBridge = window['app-bridge'];
     var createApp = AppBridge.default;
 
-    createApp({
+    // Initialize App Bridge
+    var app = createApp({
       apiKey: '${SHOPIFY_API_KEY}',
       host: '${host}',
       forceRedirect: true
     });
 
     console.log('[APP BRIDGE] Initialized');
+
+    // Function to get session token
+    async function getSessionToken() {
+      try {
+        // App Bridge 3.0 method to get session token
+        const token = await app.idToken();
+        console.log('[SESSION TOKEN] Retrieved successfully');
+        return token;
+      } catch (error) {
+        console.error('[SESSION TOKEN] Error:', error);
+        throw error;
+      }
+    }
+
+    // Example: Test session token authentication
+    async function testSessionToken() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = 'Loading...';
+
+      try {
+        const token = await getSessionToken();
+        
+        // Make authenticated API call
+        const response = await fetch('/api/data', {
+          method: 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+        resultDiv.style.background = '#d4f5e9';
+      } catch (error) {
+        resultDiv.textContent = 'Error: ' + error.message;
+        resultDiv.style.background = '#ffd6d6';
+      }
+    }
   </script>
 </body>
 </html>
