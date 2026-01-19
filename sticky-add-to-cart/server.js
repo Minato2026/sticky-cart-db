@@ -23,11 +23,12 @@ if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
   process.exit(1);
 }
 
-// ================= UNIVERSAL WEBHOOK ENDPOINT =================
+// ================= UNIFIED WEBHOOK ENDPOINT =================
 // CRITICAL: MUST be before body parsers
+// This endpoint handles ALL webhooks including GDPR compliance
 app.post(
   '/api/webhooks',
-  express.text({ type: '*/*' }),
+  express.text({ type: 'application/json' }),
   (req, res) => {
     const hmac = req.headers['x-shopify-hmac-sha256'];
     const topic = req.headers['x-shopify-topic'];
@@ -39,7 +40,7 @@ app.post(
       return res.status(401).send('Unauthorized');
     }
 
-    // CRITICAL FIX: Do NOT add 'utf8' encoding - express.text() already provides a string
+    // HMAC verification using raw body
     const generatedHmac = crypto
       .createHmac('sha256', SHOPIFY_API_SECRET)
       .update(req.body)
@@ -52,56 +53,26 @@ app.post(
       return res.status(401).send('Unauthorized');
     }
 
-    // HMAC valid - log and return 200 immediately
+    // HMAC valid - log success
     console.log(`[WEBHOOK] ✅ ${topic} from ${shop}`);
     console.log('[HMAC] ✅ Valid webhook signature');
 
-    // Handle specific topics if needed
+    // Handle GDPR compliance webhooks - IMMEDIATE RESPONSE
+    if (topic === 'customers/data_request' ||
+      topic === 'customers/redact' ||
+      topic === 'shop/redact') {
+      console.log(`[PRIVACY] ✅ ${topic}`);
+      return res.status(200).send('OK');
+    }
+
+    // Handle app/uninstalled
     if (topic === 'app/uninstalled') {
       console.log(`[WEBHOOK] App uninstalled from ${shop}`);
       // Optional: Clean up data here
     }
 
-    if (topic === 'customers/data_request' || topic === 'customers/redact' || topic === 'shop/redact') {
-      console.log(`[PRIVACY] ✅ ${topic}`);
-    }
-
     // Always return 200 OK
-    return res.status(200).send();
-  }
-);
-
-// ================= GDPR / PRIVACY WEBHOOKS =================
-// Shopify looks specifically for this endpoint
-app.post(
-  '/webhooks/privacy',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    const hmac = req.headers['x-shopify-hmac-sha256'];
-
-    if (!hmac) {
-      console.error('[PRIVACY WEBHOOK] ❌ Missing HMAC header');
-      return res.status(401).send('Unauthorized');
-    }
-
-    const generatedHmac = crypto
-      .createHmac('sha256', process.env.SHOPIFY_API_SECRET)
-      .update(req.body)
-      .digest('base64');
-
-    if (generatedHmac !== hmac) {
-      console.error('[PRIVACY WEBHOOK] ❌ HMAC verification failed');
-      return res.status(401).send('Unauthorized');
-    }
-
-    console.log('[HMAC] ✅ Valid webhook signature');
-
-    const topic = req.headers['x-shopify-topic'];
-    const shop = req.headers['x-shopify-shop-domain'];
-
-    console.log(`[PRIVACY] ✅ ${topic}`);
-
-    return res.status(200).send();
+    return res.status(200).send('OK');
   }
 );
 
