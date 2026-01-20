@@ -345,6 +345,8 @@ app.get('/app', (req, res) => {
   <script>
     // Store API key from server
     const apiKey = '${SHOPIFY_API_KEY}';
+    const urlParams = new URLSearchParams(window.location.search);
+    const host = urlParams.get('host');
     
     // 1. VISUAL CHECK: Display API key status
     const keyStatus = document.getElementById('key-status');
@@ -356,6 +358,7 @@ app.get('/app', (req, res) => {
     } else {
       keyStatus.innerHTML = "<span style='color:green'>FOUND (" + apiKey.slice(0,8) + "...)</span>";
       console.log('API Key loaded:', apiKey.slice(0,8) + '...');
+      console.log('Host parameter:', host);
     }
 
     // 2. Check if shopify object exists
@@ -365,11 +368,13 @@ app.get('/app', (req, res) => {
         
         // 3. MANUAL INIT - Force configuration
         try {
+          // CRITICAL: Include host parameter for shopify.id to work
           shopify.config = {
             apiKey: apiKey,
+            host: host,  // <--- This was missing!
             forceRedirect: true
           };
-          console.log('[APP BRIDGE] Manually configured with API key');
+          console.log('[APP BRIDGE] Configured with API key and host');
         } catch (e) {
           console.error('[APP BRIDGE] Config failed:', e);
         }
