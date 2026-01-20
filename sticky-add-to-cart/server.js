@@ -327,10 +327,9 @@ app.get('/app', (req, res) => {
   </div>
 
   <script>
-    // Ensure apiKey is treated as a string
-    var apiKey = "${SHOPIFY_API_KEY}"; 
+    var apiKey = "${SHOPIFY_API_KEY}";
     
-    // Initialize App Bridge Standard
+    // Initialize using createApp (The most stable method)
     var app = shopify.createApp({
       apiKey: apiKey,
       host: new URLSearchParams(location.search).get("host"),
@@ -338,19 +337,19 @@ app.get('/app', (req, res) => {
     });
 
     document.getElementById('test-session-token').addEventListener('click', function() {
-      // Use the 'app' instance we just created
-      app.getState().then(function(state) {
-        console.log("App State:", state);
-        return shopify.getSessionToken(app);
-      })
-      .then(function(token) {
-        console.log("Token Generated:", token);
-        alert("SUCCESS! Session Token Generated.");
-      })
-      .catch(function(err) {
-        console.error(err);
-        alert("Error: " + err);
-      });
+      // Visual feedback
+      this.innerHTML = "Generated! (Check Console)";
+      
+      // Get Token using the app instance
+      shopify.getSessionToken(app)
+        .then(function(token) {
+          console.log("Token:", token);
+          alert("SUCCESS! Token Generated.");
+        })
+        .catch(function(err) {
+          console.error(err);
+          alert("Error: " + err);
+        });
     });
 
     // Helper function for API calls
