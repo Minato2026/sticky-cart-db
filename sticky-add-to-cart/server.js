@@ -267,7 +267,7 @@ app.get('/app', (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sticky Add to Cart</title>
-  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="${SHOPIFY_API_KEY}"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -327,34 +327,49 @@ app.get('/app', (req, res) => {
   </div>
 
   <script>
-    var apiKey = "${SHOPIFY_API_KEY}";
-    
-    // Initialize using createApp (The most stable method)
-    var app = shopify.createApp({
-      apiKey: apiKey,
-      host: new URLSearchParams(location.search).get("host"),
-      forceRedirect: true
-    });
-
-    document.getElementById('test-session-token').addEventListener('click', function() {
-      // Visual feedback
-      this.innerHTML = "Generated! (Check Console)";
+    // 1. Wait for DOM to be fully loaded (Fixes silent clicks)
+    document.addEventListener('DOMContentLoaded', function() {
       
-      // Get Token using the app instance
-      shopify.getSessionToken(app)
-        .then(function(token) {
-          console.log("Token:", token);
-          alert("SUCCESS! Token Generated.");
-        })
-        .catch(function(err) {
-          console.error(err);
-          alert("Error: " + err);
+      var btn = document.getElementById('test-session-token');
+      
+      if(btn) {
+        // Change text to confirm update
+        btn.innerHTML = "TOKEN CHECK (Final)";
+        
+        btn.addEventListener('click', function() {
+          console.log("Button clicked...");
+          
+          // Visual Feedback
+          btn.innerHTML = "Working...";
+          
+          // 2. Use V4 Syntax directly
+          if (window.shopify && window.shopify.id) {
+            window.shopify.id.getSessionToken()
+              .then(function(token) {
+                console.log("Token:", token);
+                alert("SUCCESS! Token Generated.");
+                btn.innerHTML = "DONE ✅";
+              })
+              .catch(function(err) {
+                console.error(err);
+                alert("Error: " + err);
+                btn.innerHTML = "Retry";
+              });
+          } else {
+            alert("Error: Shopify App Bridge not loaded yet. Wait a second and try again.");
+          }
         });
+      } else {
+        console.error("Button not found in DOM");
+      }
     });
 
     // Helper function for API calls
     async function getSessionToken() {
-      return shopify.getSessionToken(app);
+      if (window.shopify && window.shopify.id) {
+        return await window.shopify.id.getSessionToken();
+      }
+      throw new Error('Shopify App Bridge not initialized');
     }
   </script>
 </body>
