@@ -267,7 +267,7 @@ app.get('/app', (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sticky Add to Cart</title>
-  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="${SHOPIFY_API_KEY}"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -339,13 +339,8 @@ app.get('/app', (req, res) => {
   </div>
 
   <script>
-    // App Bridge V4 - Initialize with shopify.config
-    shopify.config({
-      apiKey: '${SHOPIFY_API_KEY}',
-      host: '${host}'
-    });
-
-    console.log('[APP BRIDGE] Initialized with V4 syntax');
+    // App Bridge auto-initializes via data-api-key attribute
+    console.log('[APP BRIDGE] Auto-initialized via data-api-key');
 
     // Function to get session token (V4 syntax)
     async function getSessionToken() {
