@@ -333,66 +333,34 @@ app.get('/app', (req, res) => {
     </div>
     <p><strong>Shop:</strong> ${shop}</p>
     <p>Your sticky add-to-cart feature is now active on your storefront.</p>
-    
-    <button onclick="testSessionToken()">Test Session Token</button>
-    <div id="result"></div>
   </div>
 
   <script>
-    // App Bridge auto-initializes via data-api-key attribute
-    console.log('[APP BRIDGE] Auto-initialized via data-api-key');
+    // 1. Initialize App Bridge immediately
+    shopify.config = {
+      apiKey: '${SHOPIFY_API_KEY}',
+      forceRedirect: true
+    };
 
-    // Function to get session token (V4 syntax)
-    async function getSessionToken() {
-      try {
-        const token = await shopify.id.getSessionToken();
-        console.log('[SESSION TOKEN] Retrieved successfully');
-        return token;
-      } catch (error) {
-        console.error('[SESSION TOKEN] Error:', error);
-        throw error;
-      }
-    }
+    console.log('[APP BRIDGE] Initialized with explicit config');
 
-    // Example: Test session token authentication
-    async function testSessionToken() {
-      const resultDiv = document.getElementById('result');
-      resultDiv.style.display = 'block';
-      resultDiv.textContent = 'Loading...';
-
-      try {
-        const token = await getSessionToken();
-        
-        // Make authenticated API call
-        const response = await fetch('/api/data', {
-          method: 'GET',
-          headers: {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        const data = await response.json();
-        resultDiv.textContent = JSON.stringify(data, null, 2);
-        resultDiv.style.background = '#d4f5e9';
-      } catch (error) {
-        resultDiv.textContent = 'Error: ' + error.message;
-        resultDiv.style.background = '#ffd6d6';
-      }
-    }
-
-    // Event listener for automated check helper button (V4 syntax)
+    // 2. Button Logic - Single event listener for the one button
     document.getElementById('test-session-token').addEventListener('click', async () => {
       try {
-        // New App Bridge V4 syntax
+        console.log('Attempting to generate token...');
         const token = await shopify.id.getSessionToken();
-        console.log('Token generated:', token);
-        alert('Success! Session Token Generated.');
+        console.log('Token:', token);
+        alert('Success! Token Generated.');
       } catch (error) {
-        console.error('Token Error:', error);
-        alert('Error generating token: ' + error.message);
+        console.error(error);
+        alert('Error: ' + error.message);
       }
     });
+
+    // 3. Helper function for API calls (if needed)
+    async function getSessionToken() {
+      return await shopify.id.getSessionToken();
+    }
   </script>
 </body>
 </html>
