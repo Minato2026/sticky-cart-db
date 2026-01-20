@@ -340,27 +340,44 @@ app.get('/app', (req, res) => {
       var btn = document.getElementById('test-session-token');
       var debugInfo = document.getElementById('debug-info');
       var key = "${SHOPIFY_API_KEY}";
+      var host = new URLSearchParams(location.search).get("host");
+      
+      // MANUAL INITIALIZATION (The Fix!)
+      var app = null;
+      if (typeof shopify !== 'undefined' && shopify.createApp) {
+        try {
+          app = shopify.createApp({
+            apiKey: key,
+            host: host,
+            forceRedirect: true
+          });
+          console.log('[INIT] App Bridge manually initialized');
+        } catch (e) {
+          console.error('[INIT] Failed to create app:', e);
+        }
+      }
       
       // Diagnostic check
       setTimeout(function() {
         var status = [];
         status.push('shopify: ' + (typeof shopify !== 'undefined' ? '✅' : '❌'));
-        if (typeof shopify !== 'undefined') {
-          status.push('shopify.id: ' + (shopify.id ? '✅' : '❌'));
-        }
+        status.push('shopify.id: ' + (typeof shopify !== 'undefined' && shopify.id ? '✅' : '❌'));
+        status.push('app: ' + (app ? '✅' : '❌'));
         status.push('API Key: ' + (key ? key.substring(0,8) + '...' : '❌'));
         debugInfo.innerHTML = status.join(' | ');
       }, 1000);
       
       if(btn) {
-        btn.innerHTML = "FORCE TOKEN GENERATION ⚡";
+        btn.innerHTML = "GENERATE TOKEN ⚡";
         btn.disabled = false;
         
         btn.addEventListener('click', function() {
           console.log('=== DIAGNOSTIC START ===');
           console.log('1. shopify exists?', typeof shopify !== 'undefined');
           console.log('2. shopify.id exists?', typeof shopify !== 'undefined' && shopify.id);
-          console.log('3. API Key:', key);
+          console.log('3. app exists?', app);
+          console.log('4. API Key:', key);
+          console.log('5. Host:', host);
           
           // Check if library loaded
           if (typeof shopify === 'undefined') {
@@ -369,24 +386,18 @@ app.get('/app', (req, res) => {
             return;
           }
 
-          if (!shopify.id) {
-            alert("ERROR: shopify.id is undefined!\\nApp Bridge not initialized properly.");
-            btn.innerHTML = "Not Initialized ❌";
-            return;
-          }
-
-          // Get Token
+          // Get Token using shopify.getSessionToken with app instance
           btn.innerHTML = "Generating...";
-          console.log('4. Calling shopify.id.getSessionToken()...');
+          console.log('6. Calling shopify.getSessionToken(app)...');
           
-          shopify.id.getSessionToken()
+          shopify.getSessionToken(app)
             .then(function(token) {
-              console.log('5. SUCCESS! Token:', token);
+              console.log('7. SUCCESS! Token:', token);
               alert("SUCCESS! Token Generated ✅");
               btn.innerHTML = "DONE ✅";
             })
             .catch(function(err) {
-              console.error('5. ERROR:', err);
+              console.error('7. ERROR:', err);
               alert("Error: " + err.message);
               btn.innerHTML = "Error: " + err.message;
             });
