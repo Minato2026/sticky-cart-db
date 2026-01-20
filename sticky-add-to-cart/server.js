@@ -267,7 +267,7 @@ app.get('/app', (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sticky Add to Cart</title>
-  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="${SHOPIFY_API_KEY}"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -327,48 +327,37 @@ app.get('/app', (req, res) => {
   </div>
 
   <script>
-    // 1. Get API Key and Host from URL
-    const apiKey = '${SHOPIFY_API_KEY}';
-    const urlParams = new URLSearchParams(window.location.search);
-    const host = urlParams.get('host');
-
-    // Visual confirmation that NEW code is running
-    console.log('--> NEW CODE LOADED v2. Host:', host);
-
-    // 2. Initialize App Bridge with host parameter
-    if (window.shopify) {
-      shopify.config = {
-        apiKey: apiKey,
-        host: host,       // CRITICAL: This enables shopify.id
-        forceRedirect: true
-      };
-      console.log('[APP BRIDGE] Configured with host:', host);
-    }
-
-    // 3. Button Handler
+    // Button Logic with "Ready" check
     const btn = document.getElementById('test-session-token');
+    
     if (btn) {
-      btn.innerHTML = 'TEST TOKEN (v2)'; // Changed text to prove update
+      btn.innerHTML = 'GENERATE TOKEN (Final)'; // Visual confirmation
+      
       btn.addEventListener('click', async () => {
         try {
-          if (!host) throw new Error('HOST parameter is missing from URL!');
+          console.log('Waiting for Shopify App Bridge...');
           
-          btn.innerText = 'Generating...';
+          // Wait for the app to be ready (Fixes 'undefined' errors)
+          await shopify.ready();
+          
+          console.log('App Bridge Ready! Requesting token...');
           const token = await shopify.id.getSessionToken();
-          btn.innerText = 'TEST TOKEN (v2)';
           
           console.log('Token:', token);
-          alert('SUCCESS! \\nToken: ' + token.substring(0, 50) + '...');
+          alert('SUCCESS! Token Generated ✅');
+          
         } catch (error) {
-          btn.innerText = 'TEST TOKEN (v2)';
           console.error(error);
-          alert('Fix Failed: ' + error.message + '\\n(Host: ' + host + ')');
+          alert('Error: ' + error.message);
         }
       });
+    } else {
+      console.error('Test button not found!');
     }
 
     // Helper function for API calls
     async function getSessionToken() {
+      await shopify.ready();
       return await shopify.id.getSessionToken();
     }
   </script>
