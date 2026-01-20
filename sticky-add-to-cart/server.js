@@ -339,23 +339,18 @@ app.get('/app', (req, res) => {
   </div>
 
   <script>
-    var AppBridge = window['app-bridge'];
-    var createApp = AppBridge.default;
-
-    // Initialize App Bridge
-    var app = createApp({
+    // App Bridge V4 - Initialize with shopify.config
+    shopify.config({
       apiKey: '${SHOPIFY_API_KEY}',
-      host: '${host}',
-      forceRedirect: true
+      host: '${host}'
     });
 
-    console.log('[APP BRIDGE] Initialized');
+    console.log('[APP BRIDGE] Initialized with V4 syntax');
 
-    // Function to get session token
+    // Function to get session token (V4 syntax)
     async function getSessionToken() {
       try {
-        // App Bridge 3.0 method to get session token
-        const token = await app.idToken();
+        const token = await shopify.id.getSessionToken();
         console.log('[SESSION TOKEN] Retrieved successfully');
         return token;
       } catch (error) {
@@ -391,15 +386,16 @@ app.get('/app', (req, res) => {
       }
     }
 
-    // Event listener for automated check helper button
-    document.getElementById('test-session-token').addEventListener('click', async function() {
+    // Event listener for automated check helper button (V4 syntax)
+    document.getElementById('test-session-token').addEventListener('click', async () => {
       try {
-        const token = await getSessionToken();
-        console.log('[AUTOMATED CHECK] Session token:', token);
-        alert('Session Token Generated Successfully!');
+        // New App Bridge V4 syntax
+        const token = await shopify.id.getSessionToken();
+        console.log('Token generated:', token);
+        alert('Success! Session Token Generated.');
       } catch (error) {
-        console.error('[AUTOMATED CHECK] Error:', error);
-        alert('Error generating session token: ' + error.message);
+        console.error('Token Error:', error);
+        alert('Error generating token: ' + error.message);
       }
     });
   </script>
