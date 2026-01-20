@@ -307,19 +307,12 @@ app.get('/app', (req, res) => {
     button:hover {
       background: #006e52;
     }
-    button:disabled {
-      background: #999;
-      cursor: not-allowed;
-    }
   </style>
 </head>
 <body>
   <!-- Automated Check Helper -->
   <div style="background: #e3f1df; padding: 15px; margin-bottom: 20px; border: 1px solid #cce5c8; border-radius: 5px;">
     <p style="margin: 0 0 10px 0; color: #008060; font-weight: bold;">Automated Check Helper</p>
-    <div style="margin-bottom: 10px; font-size: 12px; color: #666;">
-      API Key Check: <span id="key-debug">Checking...</span>
-    </div>
     <button id="test-session-token" type="button" style="padding: 10px 20px; background: #008060; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Session Token</button>
   </div>
 
@@ -336,61 +329,43 @@ app.get('/app', (req, res) => {
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       var btn = document.getElementById('test-session-token');
-      var keyDebug = document.getElementById('key-debug');
-      
-      // 1. Verify Key Injection
       var key = "${SHOPIFY_API_KEY}";
-      if(key && key.length > 5) {
-        keyDebug.innerHTML = "Injecting ✅ (" + key.substring(0,4) + "...)";
-        keyDebug.style.color = "green";
-      } else {
-        keyDebug.innerHTML = "MISSING ❌";
-        keyDebug.style.color = "red";
-      }
-
-      // 2. Disable Button Initially
+      
       if(btn) {
-        btn.innerHTML = "Loading Library...";
-        btn.disabled = true;
-        btn.style.opacity = "0.6";
-        btn.style.cursor = "not-allowed";
-      }
-
-      // 3. Polling Loop (Wait for App Bridge)
-      var attempts = 0;
-      var poller = setInterval(function() {
-        attempts++;
-        console.log("Waiting for Shopify... Attempt " + attempts);
-
-        if (window.shopify && window.shopify.id) {
-          clearInterval(poller); // Stop waiting
-          
-          // Enable Button
-          if(btn) {
-            btn.innerHTML = "GENERATE TOKEN (Ready)";
-            btn.disabled = false;
-            btn.style.opacity = "1";
-            btn.style.cursor = "pointer";
-            
-            // Add Click Handler
-            btn.addEventListener('click', function() {
-              btn.innerHTML = "Generating...";
-              shopify.id.getSessionToken().then(function(token) {
-                console.log("Token:", token);
-                alert("SUCCESS! Token Generated ✅");
-                btn.innerHTML = "DONE ✅";
-              }).catch(function(err) {
-                console.error(err);
-                alert("Error: " + err);
-                btn.innerHTML = "Retry";
-              });
-            });
-          }
-        }
+        // 1. Enable immediately (No waiting)
+        btn.innerHTML = "FORCE TOKEN GENERATION ⚡";
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.cursor = "pointer";
         
-        // Stop after 10 seconds to save memory
-        if(attempts > 20) clearInterval(poller);
-      }, 500);
+        btn.addEventListener('click', function() {
+          // 2. Check if library loaded
+          if (typeof shopify === 'undefined') {
+            alert("Error: Shopify Library (CDN) is missing from the page source!");
+            return;
+          }
+
+          // 3. Force Config (The Fix)
+          var host = new URLSearchParams(location.search).get("host");
+          if(host) {
+            shopify.config = { apiKey: key, host: host, forceRedirect: true };
+          }
+
+          // 4. Get Token
+          btn.innerHTML = "Generating...";
+          shopify.id.getSessionToken()
+            .then(function(token) {
+              console.log("Token:", token);
+              alert("SUCCESS! Token Generated ✅");
+              btn.innerHTML = "DONE ✅";
+            })
+            .catch(function(err) {
+              console.error(err);
+              alert("Error: " + err);
+              btn.innerHTML = "Retry";
+            });
+        });
+      }
     });
 
     // Helper function for API calls
