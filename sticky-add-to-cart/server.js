@@ -267,7 +267,7 @@ app.get('/app', (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sticky Add to Cart</title>
-  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="${SHOPIFY_API_KEY}"></script>
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -307,25 +307,16 @@ app.get('/app', (req, res) => {
     button:hover {
       background: #006e52;
     }
-    #result {
-      margin-top: 20px;
-      padding: 12px;
-      background: #f1f2f4;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 12px;
-      display: none;
-    }
   </style>
 </head>
 <body>
-  <!-- Automated Check Helper - Added at top as requested -->
+  <!-- Automated Check Helper -->
   <div style="background: #e3f1df; padding: 15px; margin-bottom: 20px; border: 1px solid #cce5c8; border-radius: 5px;">
     <p style="margin: 0 0 10px 0; color: #008060; font-weight: bold;">Automated Check Helper</p>
     <button id="test-session-token" type="button" style="padding: 10px 20px; background: #008060; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Session Token</button>
   </div>
 
-  <!-- Existing UI Content -->
+  <!-- Main Content -->
   <div class="container">
     <h1>✅ Sticky Add to Cart</h1>
     <div class="status">
@@ -335,83 +326,49 @@ app.get('/app', (req, res) => {
     <p>Your sticky add-to-cart feature is now active on your storefront.</p>
   </div>
 
-  <!-- Debug Info Section -->
-  <div style="background:#eee; padding:10px; margin:10px; font-family:monospace; border-radius:5px;">
-    <strong>Debug Info:</strong><br>
-    API Key present: <span id="key-status">Checking...</span><br>
-    Shopify object: <span id="shopify-status">Checking...</span>
-  </div>
-
   <script>
-    // Store API key from server
+    // 1. Get API Key and Host from URL
     const apiKey = '${SHOPIFY_API_KEY}';
     const urlParams = new URLSearchParams(window.location.search);
     const host = urlParams.get('host');
-    
-    // 1. VISUAL CHECK: Display API key status
-    const keyStatus = document.getElementById('key-status');
-    const shopifyStatus = document.getElementById('shopify-status');
-    
-    if (!apiKey || apiKey.trim() === '' || apiKey === 'undefined') {
-      keyStatus.innerHTML = "<span style='color:red'>MISSING! (Server not sending key)</span>";
-      console.error('API Key is missing or undefined!');
-    } else {
-      keyStatus.innerHTML = "<span style='color:green'>FOUND (" + apiKey.slice(0,8) + "...)</span>";
-      console.log('API Key loaded:', apiKey.slice(0,8) + '...');
-      console.log('Host parameter:', host);
+
+    // Visual confirmation that NEW code is running
+    console.log('--> NEW CODE LOADED v2. Host:', host);
+
+    // 2. Initialize App Bridge with host parameter
+    if (window.shopify) {
+      shopify.config = {
+        apiKey: apiKey,
+        host: host,       // CRITICAL: This enables shopify.id
+        forceRedirect: true
+      };
+      console.log('[APP BRIDGE] Configured with host:', host);
     }
 
-    // 2. Check if shopify object exists
-    setTimeout(() => {
-      if (typeof shopify !== 'undefined') {
-        shopifyStatus.innerHTML = "<span style='color:green'>LOADED</span>";
-        
-        // 3. MANUAL INIT - Force configuration
+    // 3. Button Handler
+    const btn = document.getElementById('test-session-token');
+    if (btn) {
+      btn.innerHTML = 'TEST TOKEN (v2)'; // Changed text to prove update
+      btn.addEventListener('click', async () => {
         try {
-          // CRITICAL: Include host parameter for shopify.id to work
-          shopify.config = {
-            apiKey: apiKey,
-            host: host,  // <--- This was missing!
-            forceRedirect: true
-          };
-          console.log('[APP BRIDGE] Configured with API key and host');
-        } catch (e) {
-          console.error('[APP BRIDGE] Config failed:', e);
+          if (!host) throw new Error('HOST parameter is missing from URL!');
+          
+          btn.innerText = 'Generating...';
+          const token = await shopify.id.getSessionToken();
+          btn.innerText = 'TEST TOKEN (v2)';
+          
+          console.log('Token:', token);
+          alert('SUCCESS! \\nToken: ' + token.substring(0, 50) + '...');
+        } catch (error) {
+          btn.innerText = 'TEST TOKEN (v2)';
+          console.error(error);
+          alert('Fix Failed: ' + error.message + '\\n(Host: ' + host + ')');
         }
-      } else {
-        shopifyStatus.innerHTML = "<span style='color:red'>NOT LOADED</span>";
-        console.error('Shopify App Bridge script not loaded!');
-      }
-    }, 500);
+      });
+    }
 
-    // 4. Button Handler with robust error checking
-    document.getElementById('test-session-token').addEventListener('click', async () => {
-      try {
-        // Check if shopify exists
-        if (typeof shopify === 'undefined') {
-          throw new Error('Shopify App Bridge not loaded. Check script tag.');
-        }
-        
-        // Check if shopify.id exists
-        if (!shopify.id) {
-          throw new Error('shopify.id not initialized. API Key may be invalid.');
-        }
-        
-        console.log('Attempting to get session token...');
-        const token = await shopify.id.getSessionToken();
-        console.log('Token received:', token);
-        alert('SUCCESS! Token: ' + token.substring(0, 50) + '...');
-      } catch (err) {
-        console.error('Error details:', err);
-        alert('Error: ' + err.message);
-      }
-    });
-
-    // 5. Helper function for API calls
+    // Helper function for API calls
     async function getSessionToken() {
-      if (typeof shopify === 'undefined' || !shopify.id) {
-        throw new Error('Shopify App Bridge not properly initialized');
-      }
       return await shopify.id.getSessionToken();
     }
   </script>
