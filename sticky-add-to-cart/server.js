@@ -319,6 +319,13 @@ app.get('/app', (req, res) => {
   </style>
 </head>
 <body>
+  <!-- Automated Check Helper - Added at top as requested -->
+  <div style="background: #e3f1df; padding: 15px; margin-bottom: 20px; border: 1px solid #cce5c8; border-radius: 5px;">
+    <p style="margin: 0 0 10px 0; color: #008060; font-weight: bold;">Automated Check Helper</p>
+    <button id="test-session-token" type="button" style="padding: 10px 20px; background: #008060; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Session Token</button>
+  </div>
+
+  <!-- Existing UI Content -->
   <div class="container">
     <h1>✅ Sticky Add to Cart</h1>
     <div class="status">
@@ -383,6 +390,18 @@ app.get('/app', (req, res) => {
         resultDiv.style.background = '#ffd6d6';
       }
     }
+
+    // Event listener for automated check helper button
+    document.getElementById('test-session-token').addEventListener('click', async function() {
+      try {
+        const token = await getSessionToken();
+        console.log('[AUTOMATED CHECK] Session token:', token);
+        alert('Session Token Generated Successfully!');
+      } catch (error) {
+        console.error('[AUTOMATED CHECK] Error:', error);
+        alert('Error generating session token: ' + error.message);
+      }
+    });
   </script>
 </body>
 </html>
