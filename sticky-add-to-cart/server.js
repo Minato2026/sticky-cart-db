@@ -335,30 +335,78 @@ app.get('/app', (req, res) => {
     <p>Your sticky add-to-cart feature is now active on your storefront.</p>
   </div>
 
+  <!-- Debug Info Section -->
+  <div style="background:#eee; padding:10px; margin:10px; font-family:monospace; border-radius:5px;">
+    <strong>Debug Info:</strong><br>
+    API Key present: <span id="key-status">Checking...</span><br>
+    Shopify object: <span id="shopify-status">Checking...</span>
+  </div>
+
   <script>
-    // 1. Initialize App Bridge immediately
-    shopify.config = {
-      apiKey: '${SHOPIFY_API_KEY}',
-      forceRedirect: true
-    };
+    // Store API key from server
+    const apiKey = '${SHOPIFY_API_KEY}';
+    
+    // 1. VISUAL CHECK: Display API key status
+    const keyStatus = document.getElementById('key-status');
+    const shopifyStatus = document.getElementById('shopify-status');
+    
+    if (!apiKey || apiKey.trim() === '' || apiKey === 'undefined') {
+      keyStatus.innerHTML = "<span style='color:red'>MISSING! (Server not sending key)</span>";
+      console.error('API Key is missing or undefined!');
+    } else {
+      keyStatus.innerHTML = "<span style='color:green'>FOUND (" + apiKey.slice(0,8) + "...)</span>";
+      console.log('API Key loaded:', apiKey.slice(0,8) + '...');
+    }
 
-    console.log('[APP BRIDGE] Initialized with explicit config');
+    // 2. Check if shopify object exists
+    setTimeout(() => {
+      if (typeof shopify !== 'undefined') {
+        shopifyStatus.innerHTML = "<span style='color:green'>LOADED</span>";
+        
+        // 3. MANUAL INIT - Force configuration
+        try {
+          shopify.config = {
+            apiKey: apiKey,
+            forceRedirect: true
+          };
+          console.log('[APP BRIDGE] Manually configured with API key');
+        } catch (e) {
+          console.error('[APP BRIDGE] Config failed:', e);
+        }
+      } else {
+        shopifyStatus.innerHTML = "<span style='color:red'>NOT LOADED</span>";
+        console.error('Shopify App Bridge script not loaded!');
+      }
+    }, 500);
 
-    // 2. Button Logic - Single event listener for the one button
+    // 4. Button Handler with robust error checking
     document.getElementById('test-session-token').addEventListener('click', async () => {
       try {
-        console.log('Attempting to generate token...');
+        // Check if shopify exists
+        if (typeof shopify === 'undefined') {
+          throw new Error('Shopify App Bridge not loaded. Check script tag.');
+        }
+        
+        // Check if shopify.id exists
+        if (!shopify.id) {
+          throw new Error('shopify.id not initialized. API Key may be invalid.');
+        }
+        
+        console.log('Attempting to get session token...');
         const token = await shopify.id.getSessionToken();
-        console.log('Token:', token);
-        alert('Success! Token Generated.');
-      } catch (error) {
-        console.error(error);
-        alert('Error: ' + error.message);
+        console.log('Token received:', token);
+        alert('SUCCESS! Token: ' + token.substring(0, 50) + '...');
+      } catch (err) {
+        console.error('Error details:', err);
+        alert('Error: ' + err.message);
       }
     });
 
-    // 3. Helper function for API calls (if needed)
+    // 5. Helper function for API calls
     async function getSessionToken() {
+      if (typeof shopify === 'undefined' || !shopify.id) {
+        throw new Error('Shopify App Bridge not properly initialized');
+      }
       return await shopify.id.getSessionToken();
     }
   </script>
