@@ -307,12 +307,21 @@ app.get('/app', (req, res) => {
     button:hover {
       background: #006e52;
     }
+    .debug {
+      background: #f1f2f4;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
   <!-- Automated Check Helper -->
   <div style="background: #e3f1df; padding: 15px; margin-bottom: 20px; border: 1px solid #cce5c8; border-radius: 5px;">
     <p style="margin: 0 0 10px 0; color: #008060; font-weight: bold;">Automated Check Helper</p>
+    <div class="debug" id="debug-info">Checking App Bridge...</div>
     <button id="test-session-token" type="button" style="padding: 10px 20px; background: #008060; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Session Token</button>
   </div>
 
@@ -329,52 +338,61 @@ app.get('/app', (req, res) => {
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       var btn = document.getElementById('test-session-token');
+      var debugInfo = document.getElementById('debug-info');
       var key = "${SHOPIFY_API_KEY}";
       
+      // Diagnostic check
+      setTimeout(function() {
+        var status = [];
+        status.push('shopify: ' + (typeof shopify !== 'undefined' ? '✅' : '❌'));
+        if (typeof shopify !== 'undefined') {
+          status.push('shopify.id: ' + (shopify.id ? '✅' : '❌'));
+        }
+        status.push('API Key: ' + (key ? key.substring(0,8) + '...' : '❌'));
+        debugInfo.innerHTML = status.join(' | ');
+      }, 1000);
+      
       if(btn) {
-        // 1. Enable immediately (No waiting)
         btn.innerHTML = "FORCE TOKEN GENERATION ⚡";
         btn.disabled = false;
-        btn.style.opacity = "1";
-        btn.style.cursor = "pointer";
         
         btn.addEventListener('click', function() {
-          // 2. Check if library loaded
+          console.log('=== DIAGNOSTIC START ===');
+          console.log('1. shopify exists?', typeof shopify !== 'undefined');
+          console.log('2. shopify.id exists?', typeof shopify !== 'undefined' && shopify.id);
+          console.log('3. API Key:', key);
+          
+          // Check if library loaded
           if (typeof shopify === 'undefined') {
-            alert("Error: Shopify Library (CDN) is missing from the page source!");
+            alert("ERROR: shopify is undefined!\\nApp Bridge CDN failed to load.");
+            btn.innerHTML = "CDN Failed ❌";
             return;
           }
 
-          // 3. Force Config (The Fix)
-          var host = new URLSearchParams(location.search).get("host");
-          if(host) {
-            shopify.config = { apiKey: key, host: host, forceRedirect: true };
+          if (!shopify.id) {
+            alert("ERROR: shopify.id is undefined!\\nApp Bridge not initialized properly.");
+            btn.innerHTML = "Not Initialized ❌";
+            return;
           }
 
-          // 4. Get Token
+          // Get Token
           btn.innerHTML = "Generating...";
+          console.log('4. Calling shopify.id.getSessionToken()...');
+          
           shopify.id.getSessionToken()
             .then(function(token) {
-              console.log("Token:", token);
+              console.log('5. SUCCESS! Token:', token);
               alert("SUCCESS! Token Generated ✅");
               btn.innerHTML = "DONE ✅";
             })
             .catch(function(err) {
-              console.error(err);
-              alert("Error: " + err);
-              btn.innerHTML = "Retry";
+              console.error('5. ERROR:', err);
+              alert("Error: " + err.message);
+              btn.innerHTML = "Error: " + err.message;
             });
         });
       }
     });
-
-    // Helper function for API calls
-    async function getSessionToken() {
-      if (window.shopify && window.shopify.id) {
-        return await window.shopify.id.getSessionToken();
-      }
-      throw new Error('Shopify App Bridge not initialized');
-    }
   </script>
 </body>
 </html>
