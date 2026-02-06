@@ -1,0 +1,14 @@
+{% schema %}
+{
+  "name": "Sticky Add To Cart",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}
+
+<link rel="stylesheet" href="{{ 'sticky-cart.css' | asset_url }}">
+<script src="{{ 'sticky-cart.js' | asset_url }}" defer></script>
+
+<div id="sticky-cart-bar">
+  <button id="sticky-add-to-cart">Add to cart</button>
+</div>

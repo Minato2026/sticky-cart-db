@@ -20,7 +20,7 @@ const SCOPES = process.env.SCOPES || 'write_themes';
 const API_VERSION = '2024-01';
 
 // Extension ID for deep linking
-const EXTENSION_ID = 'e1aedd00-b7b7-3d03-c0a8-780619cddce0eec0c07d';
+const EXTENSION_ID = 'd82e4d75-0d97-cdee-f314-bc56ee42c12cf0e171e5';
 
 if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
   console.error('❌ Missing required environment variables');

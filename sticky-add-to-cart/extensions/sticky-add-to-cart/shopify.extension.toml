@@ -1,0 +1,8 @@
+name = "Sticky Cart Embed"
+
+uid = "d82e4d75-0d97-cdee-f314-bc56ee42c12cf0e171e5"
+
+type = "theme"
+
+[extension_points]
+target = "head"
