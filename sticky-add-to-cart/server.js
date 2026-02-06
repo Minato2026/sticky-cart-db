@@ -19,8 +19,12 @@ const HOST = process.env.HOST;
 const SCOPES = process.env.SCOPES || 'write_themes';
 const API_VERSION = '2024-01';
 
-// Extension UUID for Deep Linking (Issue 5.1.3)
-const EXTENSION_UUID = 'd82e4d75-0d97-cdee-f314-bc56ee42c12cf0e171e5';
+// ================= DEEP LINK CONFIGURATION (Issue 5.1.3) =================
+// The correct format is: activateAppId={API_KEY}/{BLOCK_HANDLE}
+// - API_KEY: Your app's client_id from shopify.app.toml
+// - BLOCK_HANDLE: The liquid filename without .liquid extension (e.g., "sticky-cart" from "sticky-cart.liquid")
+const APP_CLIENT_ID = '009b50554c5e2d1d08ab29ccdabb133b';
+const EXTENSION_BLOCK_HANDLE = 'sticky-cart';
 
 if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
   console.error('❌ Missing required environment variables');
@@ -257,8 +261,11 @@ app.get('/app', (req, res) => {
   const { shop, host } = req.query;
   if (!shop || !host) return res.status(400).send('Missing params');
 
-  // Deep Link URL for Theme Editor (Issue 5.1.3)
-  const deepLinkUrl = `https://${shop}/admin/themes/current/editor?context=apps&activateAppId=${EXTENSION_UUID}`;
+  // ========================================================
+  // DEEP LINK URL - CORRECT FORMAT FOR SHOPIFY (Issue 5.1.3)
+  // Format: https://{shop}/admin/themes/current/editor?context=apps&activateAppId={API_KEY}/{BLOCK_HANDLE}
+  // ========================================================
+  const deepLinkUrl = `https://${shop}/admin/themes/current/editor?context=apps&activateAppId=${APP_CLIENT_ID}/${EXTENSION_BLOCK_HANDLE}`;
 
   // Required for iframe embedding
   res.setHeader(
@@ -500,6 +507,10 @@ app.get('/app', (req, res) => {
       <p><strong>Automated Check Helper</strong></p>
       <div id="debug-info" style="background:#e9ebee;padding:8px;border-radius:4px;margin:8px 0;">Checking...</div>
       <button id="test-session-token" class="debug-btn" type="button">Test Session Token</button>
+      <p style="margin-top:12px;font-size:11px;color:#666;">
+        <strong>Deep Link URL:</strong><br>
+        ${deepLinkUrl}
+      </p>
     </div>
   </div>
 
