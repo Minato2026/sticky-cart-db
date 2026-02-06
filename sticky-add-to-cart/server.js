@@ -19,6 +19,9 @@ const HOST = process.env.HOST;
 const SCOPES = process.env.SCOPES || 'write_themes';
 const API_VERSION = '2024-01';
 
+// Extension UUID for Deep Linking (Issue 5.1.3)
+const EXTENSION_UUID = 'd82e4d75-0d97-cdee-f314-bc56ee42c12cf0e171e5';
+
 if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET || !HOST) {
   console.error('❌ Missing required environment variables');
   process.exit(1);
@@ -249,10 +252,13 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// ================= EMBEDDED APP UI =================
+// ================= EMBEDDED APP UI (Onboarding Dashboard) =================
 app.get('/app', (req, res) => {
   const { shop, host } = req.query;
   if (!shop || !host) return res.status(400).send('Missing params');
+
+  // Deep Link URL for Theme Editor (Issue 5.1.3)
+  const deepLinkUrl = `https://${shop}/admin/themes/current/editor?context=apps&activateAppId=${EXTENSION_UUID}`;
 
   // Required for iframe embedding
   res.setHeader(
@@ -269,70 +275,232 @@ app.get('/app', (req, res) => {
   <title>Sticky Add to Cart</title>
   <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="${SHOPIFY_API_KEY}"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       margin: 0;
-      padding: 40px;
+      padding: 40px 20px;
       background: #f6f6f7;
+      min-height: 100vh;
     }
     .container {
-      max-width: 600px;
+      max-width: 640px;
       margin: 0 auto;
       background: white;
       padding: 40px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
-    h1 {
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
       color: #202223;
-      margin-top: 0;
+      margin: 0 0 16px 0;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.3;
     }
-    .status {
-      padding: 16px;
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       background: #d4f5e9;
-      border-left: 4px solid #00a47c;
-      border-radius: 4px;
-      margin: 20px 0;
-    }
-    button {
-      background: #008060;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 4px;
-      cursor: pointer;
+      color: #00664d;
+      padding: 8px 16px;
+      border-radius: 20px;
       font-size: 14px;
       font-weight: 600;
     }
-    button:hover {
-      background: #006e52;
+    .divider {
+      height: 1px;
+      background: #e1e3e5;
+      margin: 32px 0;
     }
-    .debug {
+    .steps-section h2 {
+      color: #202223;
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 20px 0;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .step-number {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: #008060;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .step-content {
+      flex: 1;
+      padding-top: 6px;
+    }
+    .step-content p {
+      margin: 0;
+      color: #5c5f62;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    .step-content strong {
+      color: #202223;
+    }
+    .cta-section {
+      margin-top: 36px;
+      text-align: center;
+    }
+    .cta-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #008060;
+      color: white;
+      border: none;
+      padding: 18px 40px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.2s ease;
+      min-width: 280px;
+    }
+    .cta-button:hover {
+      background: #006e52;
+      transform: translateY(-2px);
+    }
+    .cta-button:active {
+      transform: translateY(0);
+    }
+    .cta-button svg {
+      width: 20px;
+      height: 20px;
+    }
+    .shop-info {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 13px;
+      color: #8c9196;
+    }
+    
+    /* Hidden debug section for automated checks */
+    .debug-section {
+      display: none;
       background: #f1f2f4;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 4px;
+      padding: 16px;
+      margin-top: 32px;
+      border-radius: 8px;
       font-family: monospace;
+      font-size: 12px;
+    }
+    .debug-section.show {
+      display: block;
+    }
+    .debug-toggle {
+      margin-top: 24px;
+      text-align: center;
+    }
+    .debug-toggle button {
+      background: none;
+      border: 1px solid #d3d4d5;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #6d7175;
+    }
+    .debug-toggle button:hover {
+      background: #f9fafb;
+    }
+    .debug-btn {
+      margin-top: 12px;
+      padding: 10px 20px;
+      background: #5c5f62;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
       font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <!-- Automated Check Helper -->
-  <div style="background: #e3f1df; padding: 15px; margin-bottom: 20px; border: 1px solid #cce5c8; border-radius: 5px;">
-    <p style="margin: 0 0 10px 0; color: #008060; font-weight: bold;">Automated Check Helper</p>
-    <div class="debug" id="debug-info">Checking...</div>
-    <button id="test-session-token" type="button" style="padding: 10px 20px; background: #008060; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Session Token</button>
-  </div>
-
-  <!-- Main Content -->
   <div class="container">
-    <h1>✅ Sticky Add to Cart</h1>
-    <div class="status">
-      <strong>Status:</strong> App installed successfully!
+    <!-- Header Section -->
+    <div class="header">
+      <h1>Enable Sticky Add To Cart in your theme</h1>
+      <div class="status-badge">
+        ✅ App Installed
+      </div>
     </div>
-    <p><strong>Shop:</strong> ${shop}</p>
-    <p>Your sticky add-to-cart feature is now active on your storefront.</p>
+
+    <div class="divider"></div>
+
+    <!-- Steps Section -->
+    <div class="steps-section">
+      <h2>Follow these steps to activate:</h2>
+      
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <p>Click the <strong>"Enable in Theme Editor"</strong> button below.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <p>In the Theme Editor, make sure the <strong>App Embed is toggled ON</strong>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <p>Click <strong>"Save"</strong> in the top right corner.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA Button -->
+    <div class="cta-section">
+      <a href="${deepLinkUrl}" target="_top" class="cta-button">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/>
+        </svg>
+        Enable in Theme Editor
+      </a>
+    </div>
+
+    <p class="shop-info">Shop: ${shop}</p>
+
+    <!-- Debug Toggle (for Shopify automated checks) -->
+    <div class="debug-toggle">
+      <button onclick="document.getElementById('debug-panel').classList.toggle('show')">
+        🔧 Developer Tools
+      </button>
+    </div>
+
+    <!-- Hidden Debug Section for Session Token Testing -->
+    <div class="debug-section" id="debug-panel">
+      <p><strong>Automated Check Helper</strong></p>
+      <div id="debug-info" style="background:#e9ebee;padding:8px;border-radius:4px;margin:8px 0;">Checking...</div>
+      <button id="test-session-token" class="debug-btn" type="button">Test Session Token</button>
+    </div>
   </div>
 
   <script>
