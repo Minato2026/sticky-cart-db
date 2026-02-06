@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "009b50554c5e2d1d08ab29ccdabb133b"
-name = "Sticky Add to Cart"
+name = "Minato Sticky Add To Cart"
 application_url = "https://sticky-cart-v2.onrender.com"
 embedded = true
 

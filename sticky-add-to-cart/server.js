@@ -279,7 +279,7 @@ app.get('/app', (req, res) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sticky Add to Cart</title>
+  <title>Minato Sticky Add To Cart</title>
   <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="${SHOPIFY_API_KEY}"></script>
   <style>
     * {
